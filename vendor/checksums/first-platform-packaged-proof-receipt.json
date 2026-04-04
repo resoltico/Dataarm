@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "targetTriple": "aarch64-apple-darwin",
+  "receiptKind": "packaged-execution-proof-placeholder",
+  "status": "placeholder",
+  "note": "Replace with the first real packaged-build proof receipt once the app is executed against exact upstream binaries on the supported Apple Silicon target."
+}

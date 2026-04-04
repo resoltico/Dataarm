@@ -1,0 +1,60 @@
+name: package-unsigned-macos
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-unsigned-macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apple-silicon-dmg:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CI: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.14.1
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Verify packaging posture
+        run: npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging
+
+      - name: Fetch pinned upstream sidecars
+        run: npm run fetch:release-sidecars
+
+      - name: Build unsigned Apple Silicon DMG
+        run: npm run package:unsigned:dmg:macos-silicon
+
+      - name: Upload unsigned Apple Silicon DMG
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ffhn-unsigned-macos-apple-silicon-dmg
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/FFHN_*.dmg
+            src-tauri/target/ci-artifacts/github-packaging-manifest.json

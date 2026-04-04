@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "current": "fixture-backed-packaged-proof",
+  "firstSupportedPlatform": {
+    "targetTriple": "aarch64-apple-darwin",
+    "status": "fixture-backed",
+    "note": "Unsigned Apple Silicon packaging has been verified locally, but not yet against exact upstream release sidecars."
+  },
+  "packagedReceiptPresent": true,
+  "runtimeEnvelopeCompatibilityChecked": true,
+  "note": "Packaged execution proof is currently limited to a fixture-backed Apple Silicon bundle."
+}

@@ -1,0 +1,25 @@
+[package]
+name = "ffhn-desktop"
+version = "0.16.1"
+description = "FFHN desktop wrapper with Apple Silicon DMG packaging"
+license = "UNLICENSED"
+publish = false
+authors = ["OpenAI"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.10.3", features = [] }
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

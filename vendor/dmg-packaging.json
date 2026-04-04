@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "current": "unsigned-apple-silicon-dmg-wired",
+  "displayAppName": "FFHN",
+  "internalDesktopPackageName": "ffhn-desktop",
+  "bundleIdentifier": "com.resoltico.ffhn",
+  "macosTarget": "aarch64-apple-darwin",
+  "localOutputDirectory": "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg",
+  "bundles": ["app", "dmg"],
+  "buildScript": "npm run tauri:build:dmg:macos-silicon",
+  "githubWorkflow": ".github/workflows/package-unsigned-macos.yml",
+  "githubRunner": "macos-15",
+  "githubArtifactName": "ffhn-unsigned-macos-apple-silicon-dmg",
+  "githubArtifactManifest": "src-tauri/target/ci-artifacts/github-packaging-manifest.json",
+  "signing": "disabled",
+  "notarization": "disabled",
+  "note": "DMG packaging is intentionally wired only for Apple Silicon macOS builds. GitHub packaging stays unsigned and unnotarized until a future release lane wires Apple signing material."
+}

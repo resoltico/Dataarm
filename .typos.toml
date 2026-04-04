@@ -1,0 +1,15 @@
+[files]
+extend-exclude = [
+  "docs/archive",
+  "node_modules",
+  "vendor",
+  "src-tauri/gen",
+  "src-tauri/target",
+  "dist"
+]
+
+[default.extend-words]
+FFHN = "FFHN"
+ffhn = "ffhn"
+htmlcut = "htmlcut"
+Tauri = "Tauri"
