@@ -1,11 +1,12 @@
 import { statusLabel, statusTone } from '../lib/presentation';
+import type { TargetStatusKind } from '../types';
 
 export function StatusPill({
   value,
   label,
   size = 'default',
 }: {
-  value: string;
+  value: TargetStatusKind;
   label?: string;
   size?: 'default' | 'compact';
 }) {

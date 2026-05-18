@@ -60,7 +60,6 @@ describe('presentation helpers', () => {
       'status_error',
       'failed_permanent',
       'failed_transient',
-      'custom_status',
     ] as const;
 
     const expected = new Map<
@@ -83,7 +82,6 @@ describe('presentation helpers', () => {
       ['status_error', { tone: 'error', label: 'Status Error', compact: 'Status' }],
       ['failed_permanent', { tone: 'error', label: 'Run Failed', compact: 'Failed' }],
       ['failed_transient', { tone: 'info', label: 'Retry Needed', compact: 'Retry' }],
-      ['custom_status', { tone: 'info', label: 'Custom Status', compact: 'Custom Status' }],
     ]);
 
     for (const statusKind of statusKinds) {

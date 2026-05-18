@@ -21,6 +21,7 @@ ensureManagedRootById('managed-playwright-test-results');
 ensureManagedRootById('managed-playwright-coverage');
 env.DATAARM_COVERAGE = '1';
 env.VITE_COVERAGE = 'true';
+env.VITE_DATAARM_BROWSER_BACKEND = 'browser_workbench';
 
 const result = spawnSync(process.execPath, [cliPath, 'test'], {
   stdio: 'inherit',

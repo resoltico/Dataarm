@@ -1,8 +1,8 @@
 # Tests
 
-## End-to-End GUI Tests
+## Browser Workbench Tests
 
-`tests/e2e/` contains Playwright tests that run against the Vite dev server and the browser mock backend. No native sidecars or sibling repositories are required.
+`tests/e2e/` contains Playwright tests that run against the Vite dev server and the explicit browser workbench backend. No native sidecars or sibling repositories are required.
 
 ### First-time setup
 
@@ -18,7 +18,7 @@ npm run test:e2e
 
 The maintained command clears disposable output before the run, executes the browser workbench against an instrumented Vite dev server, and verifies artifact hygiene afterward. Playwright reports, raw results, and browser coverage reports are written under `../.dataarm-artifacts/`.
 
-`npm run verify:frontend-coverage` then enforces the frontend `100%` line and `100%` branch contract from the maintained unit/component lane and confirms the Playwright run captured instrumented runtime files.
+`npm run quality:browser-workbench` is the maintained browser proof lane. It runs Playwright against the explicit browser workbench and then enforces the frontend `100%` line and `100%` branch contract from the maintained unit/component lane while confirming the Playwright run captured instrumented runtime files.
 
 ### Browser workbench matrix
 
@@ -58,18 +58,18 @@ That lane includes formatting, clippy, `cargo check`, `cargo test`, `cargo deny`
 | Workspace batch run          | multi-target live batch execution against a temporary watch root                                                |
 | Workspace boundary hardening | direct-child validation and traversal rejection for target-directory resolution                                 |
 
-## Release-grade field test
+## Backend release validation
 
 For a broader backend shakeout that exercises the real guided-session contract, local fixture servers, deliberate operator mistakes, and optional live-web targets, run:
 
 ```bash
-npm run fieldtest:backend
+npm run release-validation:backend
 ```
 
 Add `-- --live` when you want the matrix to reach real public sites such as `example.com` and `rust-lang.org`:
 
 ```bash
-npm run fieldtest:backend -- --live
+npm run release-validation:backend:live
 ```
 
-This lane is intentionally outside the maintained CI/quality gate because the `--live` variant depends on public network availability and current site content.
+The offline `npm run release-validation:backend` lane is part of the maintained Rust quality gate. The live variant stays manual because it depends on public network availability and current site content.

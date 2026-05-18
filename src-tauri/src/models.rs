@@ -1,13 +1,43 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 #[derive(Default)]
 pub(crate) struct AppState {
     pub(crate) recent_workspaces_lock: Mutex<()>,
     pub(crate) notification_state_lock: Mutex<()>,
     pub(crate) current_workspace_path: Mutex<Option<PathBuf>>,
+}
+
+impl AppState {
+    pub(crate) fn lock_recent_workspaces(&self) -> Result<MutexGuard<'_, ()>, String> {
+        self.recent_workspaces_lock
+            .lock()
+            .map_err(|_| "Recent-workspace state is poisoned.".to_owned())
+    }
+
+    pub(crate) fn lock_notification_state(&self) -> Result<MutexGuard<'_, ()>, String> {
+        self.notification_state_lock
+            .lock()
+            .map_err(|_| "Notification state is poisoned.".to_owned())
+    }
+
+    pub(crate) fn current_workspace_path(&self) -> Result<Option<PathBuf>, String> {
+        self.current_workspace_path
+            .lock()
+            .map_err(|_| "Current-workspace state is poisoned.".to_owned())
+            .map(|path| path.clone())
+    }
+
+    pub(crate) fn set_current_workspace_path(&self, path: Option<PathBuf>) -> Result<(), String> {
+        let mut guard = self
+            .current_workspace_path
+            .lock()
+            .map_err(|_| "Current-workspace state is poisoned.".to_owned())?;
+        *guard = path;
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -116,12 +146,147 @@ pub(crate) struct NotificationRecord {
     pub(crate) delivery_error: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WorkspaceSource {
+    Demo,
+    User,
+}
+
+impl WorkspaceSource {
+    pub(crate) fn from_workspace_origin(value: &str) -> Result<Self, String> {
+        match value {
+            "demo" => Ok(Self::Demo),
+            "user" => Ok(Self::User),
+            other => Err(format!("Unknown workspace source {other}.")),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetSourceKind {
+    Http,
+    File,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetSelectionKind {
+    CssSelector,
+    DelimiterPair,
+}
+
+impl TargetSelectionKind {
+    pub(crate) fn from_token(value: &str) -> Result<Self, String> {
+        match value {
+            "css_selector" => Ok(Self::CssSelector),
+            "delimiter_pair" => Ok(Self::DelimiterPair),
+            other => Err(format!("Unknown target selection kind {other}.")),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetCompareBasis {
+    Text,
+    InnerHtml,
+    OuterHtml,
+}
+
+impl TargetCompareBasis {
+    pub(crate) fn from_token(value: &str) -> Result<Self, String> {
+        match value {
+            "text" => Ok(Self::Text),
+            "inner_html" => Ok(Self::InnerHtml),
+            "outer_html" => Ok(Self::OuterHtml),
+            other => Err(format!("Unknown target compare basis {other}.")),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetStatusKind {
+    Ready,
+    Pending,
+    Changed,
+    SkippedDisabled,
+    InvalidConfig,
+    UnavailableTarget,
+    InvalidState,
+    IncompatibleBaseline,
+    IntegrityMismatch,
+    DirectoryInvalid,
+    StatusError,
+    FailedPermanent,
+    FailedTransient,
+}
+
+impl TargetStatusKind {
+    pub(crate) fn from_status_token(value: &str) -> Self {
+        match value {
+            "ready" => Self::Ready,
+            "pending" => Self::Pending,
+            "changed" => Self::Changed,
+            "skipped_disabled" => Self::SkippedDisabled,
+            "invalid_config" => Self::InvalidConfig,
+            "unavailable_target" => Self::UnavailableTarget,
+            "invalid_state" => Self::InvalidState,
+            "incompatible_baseline" => Self::IncompatibleBaseline,
+            "integrity_mismatch" => Self::IntegrityMismatch,
+            "directory_invalid" => Self::DirectoryInvalid,
+            "status_error" => Self::StatusError,
+            "failed_permanent" => Self::FailedPermanent,
+            "failed_transient" => Self::FailedTransient,
+            _ => Self::StatusError,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetBaselinePhase {
+    NeverSucceeded,
+    HasBaseline,
+}
+
+impl TargetBaselinePhase {
+    pub(crate) fn from_token(value: &str) -> Option<Self> {
+        match value {
+            "never_succeeded" => Some(Self::NeverSucceeded),
+            "has_baseline" => Some(Self::HasBaseline),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TargetRunOutcome {
+    Unchanged,
+    Changed,
+    Initialized,
+}
+
+impl TargetRunOutcome {
+    pub(crate) fn from_token(value: &str) -> Option<Self> {
+        match value {
+            "unchanged" => Some(Self::Unchanged),
+            "changed" => Some(Self::Changed),
+            "initialized" => Some(Self::Initialized),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WorkspaceSummary {
     pub(crate) workspace_name: String,
     pub(crate) workspace_path: String,
-    pub(crate) workspace_source: String,
+    pub(crate) workspace_source: WorkspaceSource,
     pub(crate) target_count: usize,
     pub(crate) runnable_target_count: usize,
     pub(crate) issue_count: usize,
@@ -133,7 +298,7 @@ pub(crate) struct WorkspaceSummary {
 pub(crate) struct RecentWorkspace {
     pub(crate) workspace_name: String,
     pub(crate) workspace_path: String,
-    pub(crate) workspace_source: String,
+    pub(crate) workspace_source: WorkspaceSource,
     pub(crate) last_opened_at: String,
 }
 
@@ -146,14 +311,14 @@ pub(crate) struct TargetSummary {
     pub(crate) runnable_target_id: Option<String>,
     pub(crate) display_name: Option<String>,
     pub(crate) enabled: Option<bool>,
-    pub(crate) source_kind: Option<String>,
+    pub(crate) source_kind: Option<TargetSourceKind>,
     pub(crate) source_locator: Option<String>,
-    pub(crate) selection_kind: Option<String>,
+    pub(crate) selection_kind: Option<TargetSelectionKind>,
     pub(crate) selection_label: Option<String>,
-    pub(crate) compare_basis: Option<String>,
-    pub(crate) status_kind: String,
-    pub(crate) baseline_phase: Option<String>,
-    pub(crate) last_run_outcome: Option<String>,
+    pub(crate) compare_basis: Option<TargetCompareBasis>,
+    pub(crate) status_kind: TargetStatusKind,
+    pub(crate) baseline_phase: Option<TargetBaselinePhase>,
+    pub(crate) last_run_outcome: Option<TargetRunOutcome>,
     pub(crate) last_run_at: Option<String>,
     pub(crate) error_message: Option<String>,
 }
@@ -251,7 +416,7 @@ pub(crate) struct TargetDraft {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TargetDraftSession {
     pub(crate) draft: TargetDraft,
-    pub(crate) contract_seed: Value,
+    pub(crate) contract_seed_toml: String,
 }
 
 #[derive(Serialize, Clone)]

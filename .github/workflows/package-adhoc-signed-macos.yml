@@ -1,4 +1,4 @@
-name: package-unsigned-macos
+name: package-adhoc-signed-macos
 
 on:
   workflow_dispatch:
@@ -50,13 +50,13 @@ jobs:
       - name: Run packaging posture verification
         run: npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging
 
-      - name: Build unsigned Apple Silicon DMG
-        run: npm run package:unsigned:dmg:macos-silicon
+      - name: Build ad-hoc signed Apple Silicon DMG
+        run: npm run package:adhoc-signed:dmg:macos-silicon
 
-      - name: Upload unsigned Apple Silicon DMG
+      - name: Upload ad-hoc signed Apple Silicon DMG
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: dataarm-unsigned-macos-apple-silicon-dmg
+          name: dataarm-ad-hoc-signed-macos-apple-silicon-dmg
           if-no-files-found: error
           retention-days: 14
           path: |

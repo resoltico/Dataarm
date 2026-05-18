@@ -53,8 +53,8 @@ jobs:
       - name: Run release posture verification
         run: npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging && npm run verify:release-publishing && npm run verify:app-version
 
-      - name: Build unsigned Apple Silicon DMG
-        run: npm run package:unsigned:dmg:macos-silicon
+      - name: Build ad-hoc signed Apple Silicon DMG
+        run: npm run package:adhoc-signed:dmg:macos-silicon
 
       - name: Build release checksum manifest
         run: node scripts/build-release-checksums.mjs

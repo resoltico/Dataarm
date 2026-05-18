@@ -12,7 +12,8 @@ import {
   repoRelativePath,
   repoRoot,
 } from './lib/artifact-roots.mjs';
-import { changelogSectionFor } from './lib/release-notes.mjs';
+import { ghEnvironment } from './lib/gh-auth.mjs';
+import { releaseNotesFor } from './lib/release-notes.mjs';
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -26,7 +27,7 @@ function renderTemplate(template, version) {
 function runGh(args, { capture = false, allowFailure = false } = {}) {
   const result = spawnSync('gh', args, {
     encoding: 'utf8',
-    env: process.env,
+    env: ghEnvironment(),
     stdio: capture ? ['inherit', 'pipe', 'pipe'] : 'inherit',
   });
 
@@ -66,10 +67,6 @@ if (releaseTag !== expectedTag) {
   fail(`release tag ${releaseTag} does not match the canonical version ${expectedTag}`);
 }
 
-if (!process.env.GH_TOKEN) {
-  fail('GH_TOKEN must be set before publishing a GitHub release');
-}
-
 const [dmgAssetName, manifestAssetName, checksumAssetName] = releasePolicy.managedAssets.map(
   (entry) => renderTemplate(entry, versionContract.version),
 );
@@ -87,7 +84,13 @@ for (const requiredFile of [dmgAssetPath, manifestAssetPath, checksumAssetPath])
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dataarm-release-'));
 const notesPath = path.join(tempDir, 'release-notes.md');
 try {
-  fs.writeFileSync(notesPath, `${changelogSectionFor(versionContract.version)}\n`);
+  const repositoryUrl = runGh(['repo', 'view', '--json', 'url', '--jq', '.url'], {
+    capture: true,
+  }).stdout.trim();
+  const installGuideUrl = releasePolicy.installGuidePath
+    ? `${repositoryUrl}/blob/main/${releasePolicy.installGuidePath}`
+    : null;
+  fs.writeFileSync(notesPath, `${releaseNotesFor(versionContract.version, installGuideUrl)}\n`);
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 }

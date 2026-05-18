@@ -36,7 +36,7 @@ npm run sync:app-version
 npm run verify:app-version
 ```
 
-That rewrites the duplicated consumers used by npm, Cargo, Tauri bundling, and browser-safe mock surfaces.
+That rewrites the duplicated consumers used by npm, Cargo, Tauri bundling, and browser-workbench fixtures.
 
 ## Local Development Loops
 
@@ -46,7 +46,12 @@ That rewrites the duplicated consumers used by npm, Cargo, Tauri bundling, and b
 npm run dev -- --host 127.0.0.1
 ```
 
-This starts Vite on an explicit localhost bind and uses the mock desktop backend from [src/lib/mockDesktop.ts](../src/lib/mockDesktop.ts).
+This starts Vite on an explicit localhost bind and uses the maintained browser workbench bridge:
+
+- [src/lib/browserWorkbenchClient.ts](../src/lib/browserWorkbenchClient.ts) is the frontend transport
+- [scripts/browser-workbench/vite-plugin.mjs](../scripts/browser-workbench/vite-plugin.mjs) mounts the local RPC surface
+- [scripts/browser-workbench/rust-bridge.mjs](../scripts/browser-workbench/rust-bridge.mjs) talks to the Rust example bridge
+- [src-tauri/examples/browser_workbench_bridge.rs](../src-tauri/examples/browser_workbench_bridge.rs) delegates browser workbench calls to backend-owned logic
 
 Use this loop for:
 
@@ -56,13 +61,13 @@ Use this loop for:
 - Playwright-oriented UI debugging
 - state-flow iteration that does not require native shell integration
 
-### Backend field-test matrix
+### Backend release validation
 
 ```bash
-npm run fieldtest:backend
+npm run release-validation:backend
 ```
 
-Use `npm run fieldtest:backend -- --live` before public releases when you want the real Rust backend to exercise local fixture servers, deliberate bad operator inputs, and live public websites.
+Use `npm run release-validation:backend:live` before public releases when you want the real Rust backend to exercise local fixture servers, deliberate bad operator inputs, and live public websites.
 
 Dataarm preserves the upstream FFHN and HTMLCut selection contract here. When a guided target uses `nth`, the index is 1-based.
 
@@ -105,13 +110,20 @@ npm run quality:all
 This runs:
 
 1. `npm run quality:node`
-2. `npm run test:e2e`
-3. `npm run verify:frontend-coverage`
-4. `npm run quality:rust`
+2. `npm run quality:browser-workbench`
+3. `npm run quality:rust`
 
-The frontend coverage contract is intentionally split: `npm run test:unit` proves 100% line plus 100% branch coverage across the maintained React surface, while `npm run test:e2e` drives real desktop workbench flows against an instrumented Vite dev server and must emit runtime coverage evidence without filler assertions.
+The frontend coverage contract is intentionally split inside `npm run quality:browser-workbench`: `npm run test:unit` proves 100% line plus 100% branch coverage across the maintained React surface, while `npm run test:e2e` drives real desktop workbench flows against an instrumented Vite dev server and must emit runtime coverage evidence without filler assertions.
 
-The GitHub `quality` and `miri` jobs run on Ubuntu and must install the documented Tauri Linux development packages before any Rust lane executes. Keep that prerequisite step aligned with [.github/workflows/quality-gates.yml](../.github/workflows/quality-gates.yml) when changing CI or Tauri Linux requirements.
+The GitHub `quality` and `miri` jobs run on Ubuntu and must install the documented Tauri Linux development packages before any Rust lane executes. The GitHub `quality` job must run the full browser-workbench proof lane, not a narrower Playwright-only subset. The GitHub `desktop-surface` job runs on macOS and proves that the public DMG surface matches the maintained packaging contract. Keep those workflow boundaries aligned with [.github/workflows/quality-gates.yml](../.github/workflows/quality-gates.yml) when changing CI or Tauri Linux requirements.
+
+### Release-grade ship gate
+
+```bash
+npm run quality:ship
+```
+
+This runs the full maintained suite and then builds plus verifies the ad-hoc signed DMG that the public release workflow publishes.
 
 ### Memory safety lane
 
@@ -119,22 +131,22 @@ The GitHub `quality` and `miri` jobs run on Ubuntu and must install the document
 npm run quality:miri
 ```
 
-This uses the pinned nightly toolchain and the maintained wrapper script because the Tauri startup path needs the Miri isolation override. The lane is intentionally scoped to one desktop-owned embedded-runtime seam rather than to all upstream engine behavior. `ffhn-core` owns the deeper engine proof in its own repository; Dataarm only proves that its target-run bridge into the embedded runtime remains sound.
+This uses the pinned nightly toolchain and the maintained wrapper script because the Tauri startup path needs the Miri isolation override. The lane is intentionally scoped to one desktop-owned save/read seam rather than to the entire upstream HTML extraction engine. `ffhn-core` and `htmlcut-core` own the deeper engine proof in their own repositories; Dataarm proves that its guided-session persistence and workspace read boundary remain sound under Miri, while open upstream HTML extraction defects are tracked in [.codex/htmlcut-and-ffhn-defects.txt](../.codex/htmlcut-and-ffhn-defects.txt).
 
 ## Packaging
 
 The maintained local packaging command is:
 
 ```bash
-npm run package:unsigned:dmg:macos-silicon
+npm run package:adhoc-signed:dmg:macos-silicon
 ```
 
 It does four things:
 
 1. cleans disposable artifact state
 2. verifies the packaging posture
-3. builds the unsigned Apple Silicon DMG
-4. writes a packaging manifest into `../.dataarm-artifacts/ci-artifacts/`
+3. builds the ad-hoc signed but unnotarized Apple Silicon DMG
+4. launches the mounted app bundle through the native smoke path and writes a packaging manifest into `../.dataarm-artifacts/ci-artifacts/`
 
 The packaged `.app` inside that DMG must carry its release legal surface under
 `Contents/SharedSupport/Legal/`:
@@ -155,8 +167,8 @@ There is no sidecar fetch or upstream checksum intake step in this repository an
 
 Local DMG packaging smoke and public GitHub publication are intentionally separate:
 
-1. `npm run package:unsigned:dmg:macos-silicon` proves that the repository can build the unsigned Apple Silicon DMG and packaging manifest locally.
-2. `.github/workflows/package-unsigned-macos.yml` is the manual GitHub packaging smoke lane for the same posture.
+1. `npm run package:adhoc-signed:dmg:macos-silicon` proves that the repository can build the ad-hoc signed but unnotarized Apple Silicon DMG, launch the packaged desktop binary through the native smoke path, and write the packaging manifest locally.
+2. `.github/workflows/package-adhoc-signed-macos.yml` is the manual GitHub packaging smoke lane for the same posture.
 3. `.github/workflows/release.yml` is the tag-driven public publication lane that creates the GitHub release object, uploads the maintained assets, and publishes the release.
 
 Use [docs/release-protocol.md](./release-protocol.md) for the local preflight, release branch, PR, merge, and tagging flow. Use [docs/release-publishing.md](./release-publishing.md) for the tag-triggered GitHub release publication and post-tag verification steps.

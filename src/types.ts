@@ -1,5 +1,26 @@
 export type WorkspaceSource = 'demo' | 'user';
 
+export type TargetSourceKind = 'http' | 'file';
+
+export type TargetStatusKind =
+  | 'ready'
+  | 'pending'
+  | 'changed'
+  | 'skipped_disabled'
+  | 'invalid_config'
+  | 'unavailable_target'
+  | 'invalid_state'
+  | 'incompatible_baseline'
+  | 'integrity_mismatch'
+  | 'directory_invalid'
+  | 'status_error'
+  | 'failed_permanent'
+  | 'failed_transient';
+
+export type TargetBaselinePhase = 'never_succeeded' | 'has_baseline';
+
+export type TargetRunOutcome = 'unchanged' | 'changed' | 'initialized';
+
 export type FeedbackTone = 'info' | 'success' | 'warning' | 'error';
 
 export type NotificationPolicy = 'off' | 'errors_only' | 'changes_and_errors' | 'all_completions';
@@ -66,14 +87,14 @@ export type TargetSummary = {
   runnableTargetId: string | null;
   displayName: string | null;
   enabled: boolean | null;
-  sourceKind: string | null;
+  sourceKind: TargetSourceKind | null;
   sourceLocator: string | null;
-  selectionKind: string | null;
+  selectionKind: TargetSelectionKind | null;
   selectionLabel: string | null;
-  compareBasis: string | null;
-  statusKind: string;
-  baselinePhase: string | null;
-  lastRunOutcome: string | null;
+  compareBasis: TargetCompareBasis | null;
+  statusKind: TargetStatusKind;
+  baselinePhase: TargetBaselinePhase | null;
+  lastRunOutcome: TargetRunOutcome | null;
   lastRunAt: string | null;
   errorMessage: string | null;
 };
@@ -216,7 +237,7 @@ export type TargetDraft = {
 
 export type TargetDraftSession = {
   draft: TargetDraft;
-  contractSeed: JsonValue;
+  contractSeedToml: string;
 };
 
 export type TargetPreviewRequest = {

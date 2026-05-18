@@ -6,45 +6,30 @@ import {
   statusTone,
   summarizeTarget,
 } from '../../lib/presentation';
+import {
+  isChangedTargetStatus,
+  isTargetErrorStatus,
+  TARGET_RUN_OUTCOME_LABELS,
+} from '../../lib/workbenchContract';
 import type { useDashboardState } from '../../hooks/useDashboardState';
 import type { FilterView, TargetGroupBy } from '../layout/NavSidebar';
 
 type StateType = ReturnType<typeof useDashboardState>;
+const NOOP = () => {};
 
-const ERROR_STATUS_KINDS = new Set([
-  'invalid_config',
-  'unavailable_target',
-  'invalid_state',
-  'incompatible_baseline',
-  'integrity_mismatch',
-  'directory_invalid',
-  'status_error',
-  'failed_permanent',
-  'failed_transient',
-]);
-
-function StatusDot({ statusKind }: { statusKind: string }) {
+function StatusDot({ statusKind }: { statusKind: StateType['targets'][number]['statusKind'] }) {
   const tone = statusTone(statusKind);
   return <span className={`status-dot status-dot-${tone}`} aria-hidden />;
 }
 
-function outcomeLabel(outcome: string | null) {
-  switch (outcome) {
-    case 'unchanged':
-      return 'Unchanged';
-    case 'changed':
-      return 'Changed';
-    case 'initialized':
-      return 'New baseline';
-    default:
-      return '—';
-  }
+function outcomeLabel(outcome: StateType['targets'][number]['lastRunOutcome']) {
+  return outcome == null ? '—' : TARGET_RUN_OUTCOME_LABELS[outcome];
 }
 
 function matchesFilter(target: StateType['targets'][number], filterView: FilterView) {
   switch (filterView) {
     case 'changed':
-      return target.statusKind === 'changed' || target.lastRunOutcome === 'changed';
+      return isChangedTargetStatus(target.statusKind, target.lastRunOutcome);
     case 'never_run':
       return target.lastRunAt == null || target.statusKind === 'pending';
     case 'http':
@@ -52,7 +37,7 @@ function matchesFilter(target: StateType['targets'][number], filterView: FilterV
     case 'file':
       return target.sourceKind === 'file';
     case 'attention':
-      return !!target.errorMessage || ERROR_STATUS_KINDS.has(target.statusKind);
+      return !!target.errorMessage || isTargetErrorStatus(target.statusKind);
     default:
       return true;
   }
@@ -69,9 +54,9 @@ export function TargetTable({
   state,
   filterView,
   searchQuery = '',
-  setSearchQuery = () => {},
+  setSearchQuery = NOOP,
   groupBy = 'status',
-  setGroupBy = () => {},
+  setGroupBy = NOOP,
 }: {
   state: StateType;
   filterView: FilterView;
@@ -184,10 +169,8 @@ export function TargetTable({
               <tbody>
                 {group.items.map((target) => {
                   const active = target.directoryName === state.selectedTarget?.directoryName;
-                  const isChanged =
-                    target.statusKind === 'changed' || target.lastRunOutcome === 'changed';
-                  const hasError =
-                    !!target.errorMessage || ERROR_STATUS_KINDS.has(target.statusKind);
+                  const isChanged = isChangedTargetStatus(target.statusKind, target.lastRunOutcome);
+                  const hasError = !!target.errorMessage || isTargetErrorStatus(target.statusKind);
 
                   return (
                     <tr

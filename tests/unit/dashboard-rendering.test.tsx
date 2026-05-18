@@ -111,6 +111,7 @@ describe('TopBar', () => {
 describe('NavSidebar', () => {
   it('lets users switch filters, create drafts, and manage workspaces', () => {
     const setFilterView = vi.fn();
+    const setWorkspaceInput = vi.fn();
     const handleStartNewTarget = vi.fn();
     const handleOpenWorkspaceFromInput = vi.fn();
     const handleCreateWorkspaceFromInput = vi.fn();
@@ -158,6 +159,7 @@ describe('NavSidebar', () => {
         },
       ],
       handleStartNewTarget,
+      setWorkspaceInput,
       handleOpenWorkspaceFromInput,
       handleCreateWorkspaceFromInput,
       handleOpenRecentWorkspace,
@@ -165,6 +167,9 @@ describe('NavSidebar', () => {
 
     render(<NavSidebar state={state} filterView="all" setFilterView={setFilterView} />);
 
+    fireEvent.change(screen.getByLabelText('Switch watch root'), {
+      target: { value: '/tmp/dataarm/typed-watch-root' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Changed' }));
     fireEvent.click(screen.getByRole('button', { name: 'Needs attention' }));
     fireEvent.click(screen.getByRole('button', { name: 'New HTTP' }));
@@ -175,6 +180,7 @@ describe('NavSidebar', () => {
 
     expect(setFilterView).toHaveBeenNthCalledWith(1, 'changed');
     expect(setFilterView).toHaveBeenNthCalledWith(2, 'attention');
+    expect(setWorkspaceInput).toHaveBeenCalledWith('/tmp/dataarm/typed-watch-root');
     expect(handleStartNewTarget).toHaveBeenNthCalledWith(1, 'http');
     expect(handleStartNewTarget).toHaveBeenNthCalledWith(2, 'file');
     expect(handleOpenWorkspaceFromInput).toHaveBeenCalledTimes(1);
@@ -217,6 +223,23 @@ describe('NavSidebar', () => {
     expect(getButton('Create watch root').disabled).toBe(true);
     expect(getButton('New HTTP').disabled).toBe(true);
     expect(getButton('New file').disabled).toBe(true);
+  });
+
+  it('enables workspace controls when there is no current workspace path to compare against', () => {
+    render(
+      <NavSidebar
+        state={makeDashboardState({
+          workspaceSummary: null,
+          workspace: { loading: false, error: null, data: null },
+          workspaceInput: ' /tmp/dataarm/fresh-root ',
+        })}
+        filterView="all"
+        setFilterView={vi.fn()}
+      />,
+    );
+
+    expect(getButton('Open watch root').disabled).toBe(false);
+    expect(getButton('Create watch root').disabled).toBe(false);
   });
 });
 

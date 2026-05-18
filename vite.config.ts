@@ -1,15 +1,22 @@
+import { createRequire } from 'node:module';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type PluginOption } from 'vite';
 import istanbul from 'vite-plugin-istanbul';
 import { managedDistRoot } from './scripts/lib/artifact-roots.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
 const buildTarget = 'es2020';
 const coverageEnabled = process.env.VITE_COVERAGE === 'true';
+const require = createRequire(import.meta.url);
+const { dataarmBrowserWorkbenchPlugin } =
+  require('./scripts/browser-workbench/vite-plugin.mjs') as {
+    dataarmBrowserWorkbenchPlugin: () => PluginOption;
+  };
 
 export default defineConfig({
   plugins: [
     react(),
+    dataarmBrowserWorkbenchPlugin(),
     istanbul({
       include: ['src/**/*'],
       exclude: ['tests/**', 'src/types.ts'],
@@ -17,7 +24,7 @@ export default defineConfig({
       checkProd: true,
       forceBuildInstrument: false,
     }),
-  ],
+  ].filter(Boolean),
   clearScreen: false,
   server: {
     host: host || false,

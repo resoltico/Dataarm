@@ -1,50 +1,60 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { TargetEditor } from '../../src/components/dashboard/TargetEditor';
-import { TargetTable } from '../../src/components/dashboard/TargetTable';
-import { makeDashboardState, makeDocument, makeTarget } from './fixtures';
+import { TargetEditor } from '../../../src/components/dashboard/TargetEditor';
+import { makeDashboardState, makeDocument, makeTarget } from '../fixtures';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
-describe('guided dashboard coverage', () => {
-  it('wires the guided editor, repair fallback, and existing-target actions', () => {
-    const baseDocument = makeDocument();
-    const setDraftField = vi.fn();
-    const setDraftKind = vi.fn();
-    const setSelectionKind = vi.fn();
-    const setSelectionMatch = vi.fn();
-    const liveCanonicalizers = [
-      { kind: 'strip_regex' as const, pattern: null, flags: [] as string[] },
-      { kind: 'trim' as const, pattern: null, flags: [] as string[] },
-    ];
-    const updateCanonicalizer = vi.fn(
-      (
-        index: number,
-        updater: (
-          current: (typeof liveCanonicalizers)[number],
-        ) => (typeof liveCanonicalizers)[number],
-      ) => {
-        const current = liveCanonicalizers[index];
-        if (!current) {
-          throw new Error(`Missing canonicalizer at index ${String(index)}.`);
-        }
-        liveCanonicalizers[index] = updater(current);
-      },
-    );
-    const removeCanonicalizer = vi.fn();
-    const addCanonicalizer = vi.fn();
-    const setDraftToml = vi.fn();
-    const handlePreview = vi.fn();
-    const handleSave = vi.fn();
-    const handleRunSelectedTarget = vi.fn();
-    const handleResetDraft = vi.fn();
-    const handleOpenSelectedTargetPath = vi.fn();
-    const handleDeleteSelectedTarget = vi.fn();
+function makeEditorSpies() {
+  const setDraftField = vi.fn();
+  const setDraftKind = vi.fn();
+  const setSelectionKind = vi.fn();
+  const setSelectionMatch = vi.fn();
+  const liveCanonicalizers = [
+    { kind: 'strip_regex' as const, pattern: null, flags: [] as string[] },
+    { kind: 'trim' as const, pattern: null, flags: [] as string[] },
+  ];
+  const updateCanonicalizer = vi.fn(
+    (
+      index: number,
+      updater: (
+        current: (typeof liveCanonicalizers)[number],
+      ) => (typeof liveCanonicalizers)[number],
+    ) => {
+      const current = liveCanonicalizers[index];
+      if (!current) {
+        throw new Error(`Missing canonicalizer at index ${String(index)}.`);
+      }
+      liveCanonicalizers[index] = updater(current);
+    },
+  );
 
-    const guidedFileDraft = {
+  return {
+    setDraftField,
+    setDraftKind,
+    setSelectionKind,
+    setSelectionMatch,
+    updateCanonicalizer,
+    removeCanonicalizer: vi.fn(),
+    addCanonicalizer: vi.fn(),
+    setDraftToml: vi.fn(),
+    handlePreview: vi.fn(),
+    handleSave: vi.fn(),
+    handleRunSelectedTarget: vi.fn(),
+    handleResetDraft: vi.fn(),
+    handleOpenSelectedTargetPath: vi.fn(),
+    handleDeleteSelectedTarget: vi.fn(),
+  };
+}
+
+function makeGuidedFileDraft() {
+  const baseDocument = makeDocument();
+  return {
+    baseDocument,
+    draft: {
       ...baseDocument.guidedSession.draft,
       kind: 'file' as const,
       targetId: 'release_watch',
@@ -66,33 +76,31 @@ describe('guided dashboard coverage', () => {
       compareRewriteUrls: false,
       compareCanonicalizers: [{ kind: 'strip_regex' as const, pattern: null, flags: [] }],
       storageHistoryLimit: 20,
-    };
+    },
+  };
+}
 
-    const { rerender } = render(
+describe('TargetEditor', () => {
+  it('wires guided file authoring controls to the state surface', () => {
+    const { draft } = makeGuidedFileDraft();
+    const spies = makeEditorSpies();
+
+    render(
       <TargetEditor
         state={makeDashboardState({
           selectedTarget: null,
           selectedDirectoryName: null,
           isDraftContext: true,
           editorMode: 'file',
-          draftSession: { draft: guidedFileDraft, contractSeed: {} },
-          guidedDraft: guidedFileDraft,
+          draftSession: {
+            draft,
+            contractSeedToml: 'schema_name = "ffhn.target"\n',
+          },
+          guidedDraft: draft,
           repairMode: false,
           draftToml: 'target_id = "release_watch"\n',
           dirty: true,
-          setDraftField,
-          setDraftKind,
-          setSelectionKind,
-          setSelectionMatch,
-          updateCanonicalizer,
-          removeCanonicalizer,
-          addCanonicalizer,
-          handlePreview,
-          handleSave,
-          handleRunSelectedTarget,
-          handleResetDraft,
-          handleOpenSelectedTargetPath,
-          handleDeleteSelectedTarget,
+          ...spies,
         })}
       />,
     );
@@ -183,18 +191,22 @@ describe('guided dashboard coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview target' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
 
-    expect(setDraftField).toHaveBeenCalled();
-    expect(setDraftKind).toHaveBeenCalledWith('http');
-    expect(setSelectionKind).toHaveBeenCalledWith('css_selector');
-    expect(setSelectionMatch).toHaveBeenCalledWith('single');
-    expect(updateCanonicalizer).toHaveBeenCalled();
-    expect(removeCanonicalizer).toHaveBeenCalledWith(0);
-    expect(addCanonicalizer).toHaveBeenCalledTimes(1);
-    expect(handlePreview).toHaveBeenCalledTimes(1);
-    expect(handleSave).toHaveBeenCalledTimes(1);
+    expect(spies.setDraftField).toHaveBeenCalled();
+    expect(spies.setDraftKind).toHaveBeenCalledWith('http');
+    expect(spies.setSelectionKind).toHaveBeenCalledWith('css_selector');
+    expect(spies.setSelectionMatch).toHaveBeenCalledWith('single');
+    expect(spies.updateCanonicalizer).toHaveBeenCalled();
+    expect(spies.removeCanonicalizer).toHaveBeenCalledWith(0);
+    expect(spies.addCanonicalizer).toHaveBeenCalledTimes(1);
+    expect(spies.handlePreview).toHaveBeenCalledTimes(1);
+    expect(spies.handleSave).toHaveBeenCalledTimes(1);
+  });
 
+  it('renders http-specific and compare-specific branches without compatibility fallbacks', () => {
+    const { draft } = makeGuidedFileDraft();
+    const spies = makeEditorSpies();
     const httpDraft = {
-      ...guidedFileDraft,
+      ...draft,
       kind: 'http' as const,
       sourceLocator: 'https://example.com/releases',
       fetchMethod: 'GET' as const,
@@ -214,25 +226,20 @@ describe('guided dashboard coverage', () => {
       compareBasis: 'text' as const,
       compareCanonicalizers: [],
     };
-    rerender(
+
+    const { rerender } = render(
       <TargetEditor
         state={makeDashboardState({
           selectedTarget: null,
           selectedDirectoryName: null,
           isDraftContext: true,
           editorMode: 'http',
-          draftSession: { draft: httpDraft, contractSeed: {} },
+          draftSession: { draft: httpDraft, contractSeedToml: 'schema_name = "ffhn.target"\n' },
           guidedDraft: httpDraft,
           repairMode: false,
           draftToml: 'target_id = "release_watch"\n',
           dirty: true,
-          setDraftField,
-          setDraftKind,
-          setSelectionKind,
-          setSelectionMatch,
-          updateCanonicalizer,
-          removeCanonicalizer,
-          addCanonicalizer,
+          ...spies,
         })}
       />,
     );
@@ -278,40 +285,27 @@ describe('guided dashboard coverage', () => {
           selectedDirectoryName: null,
           isDraftContext: true,
           editorMode: 'http',
-          draftSession: { draft: canonicalizerDraft, contractSeed: {} },
+          draftSession: {
+            draft: canonicalizerDraft,
+            contractSeedToml: 'schema_name = "ffhn.target"\n',
+          },
           guidedDraft: canonicalizerDraft,
           repairMode: false,
           draftToml: 'target_id = "release_watch"\n',
           dirty: true,
-          setDraftField,
-          setDraftKind,
-          setSelectionKind,
-          setSelectionMatch,
-          updateCanonicalizer,
-          removeCanonicalizer,
-          addCanonicalizer,
+          ...spies,
         })}
       />,
     );
-
     fireEvent.change(screen.getByLabelText('Canonicalizer 1 kind'), {
       target: { value: 'strip_regex' },
     });
 
-    const fallbackDraft = {
-      ...guidedFileDraft,
+    const noWhitespaceDraft = {
+      ...httpDraft,
       enabled: false,
-      kind: 'http' as const,
       fetchMethod: null,
       fetchTimeoutMs: 15000,
-      fetchUserAgent: null,
-      fetchFollowRedirects: false,
-      fetchAccept: null,
-      selectionStart: null,
-      selectionEnd: null,
-      selectionDelimiterMode: null,
-      selectionIncludeStart: true,
-      selectionIncludeEnd: true,
       compareBasis: 'inner_html' as const,
       compareWhitespace: null,
       compareRewriteUrls: true,
@@ -324,8 +318,11 @@ describe('guided dashboard coverage', () => {
           selectedDirectoryName: null,
           isDraftContext: true,
           editorMode: 'http',
-          draftSession: { draft: fallbackDraft, contractSeed: {} },
-          guidedDraft: fallbackDraft,
+          draftSession: {
+            draft: noWhitespaceDraft,
+            contractSeedToml: 'schema_name = "ffhn.target"\n',
+          },
+          guidedDraft: noWhitespaceDraft,
           repairMode: false,
           draftToml: 'target_id = "release_watch"\n',
         })}
@@ -333,28 +330,12 @@ describe('guided dashboard coverage', () => {
     );
 
     expect(screen.queryByLabelText('Whitespace policy')).toBeNull();
+  });
 
-    const nullWhitespaceDraft = {
-      ...fallbackDraft,
-      compareBasis: 'text' as const,
-      compareWhitespace: null,
-    };
-    rerender(
-      <TargetEditor
-        state={makeDashboardState({
-          selectedTarget: null,
-          selectedDirectoryName: null,
-          isDraftContext: true,
-          editorMode: 'http',
-          draftSession: { draft: nullWhitespaceDraft, contractSeed: {} },
-          guidedDraft: nullWhitespaceDraft,
-          repairMode: false,
-          draftToml: 'target_id = "release_watch"\n',
-        })}
-      />,
-    );
-
-    rerender(
+  it('supports repair mode and saved-target actions as separate workflows', () => {
+    const { baseDocument } = makeGuidedFileDraft();
+    const spies = makeEditorSpies();
+    const { rerender } = render(
       <TargetEditor
         state={makeDashboardState({
           selectedTarget: null,
@@ -366,7 +347,7 @@ describe('guided dashboard coverage', () => {
           repairMode: false,
           draftToml: 'target_id = "repair_watch"\n',
           loadingTarget: true,
-          setDraftToml,
+          setDraftToml: spies.setDraftToml,
         })}
       />,
     );
@@ -375,7 +356,7 @@ describe('guided dashboard coverage', () => {
     fireEvent.change(screen.getByLabelText('Target TOML editor'), {
       target: { value: 'target_id = "repair_watch"\n[target]\nkind = "file"\n' },
     });
-    expect(setDraftToml).toHaveBeenCalled();
+    expect(spies.setDraftToml).toHaveBeenCalled();
 
     rerender(
       <TargetEditor
@@ -389,7 +370,7 @@ describe('guided dashboard coverage', () => {
           repairMode: true,
           draftToml: 'target_id = "repair_watch"\n',
           loadingTarget: false,
-          setDraftToml,
+          setDraftToml: spies.setDraftToml,
         })}
       />,
     );
@@ -409,12 +390,12 @@ describe('guided dashboard coverage', () => {
           draftSession: baseDocument.guidedSession,
           guidedDraft: baseDocument.guidedSession.draft,
           repairMode: false,
-          handlePreview,
-          handleSave,
-          handleRunSelectedTarget,
-          handleResetDraft,
-          handleOpenSelectedTargetPath,
-          handleDeleteSelectedTarget,
+          handlePreview: spies.handlePreview,
+          handleSave: spies.handleSave,
+          handleRunSelectedTarget: spies.handleRunSelectedTarget,
+          handleResetDraft: spies.handleResetDraft,
+          handleOpenSelectedTargetPath: spies.handleOpenSelectedTargetPath,
+          handleDeleteSelectedTarget: spies.handleDeleteSelectedTarget,
         })}
       />,
     );
@@ -423,9 +404,9 @@ describe('guided dashboard coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open folder' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete target' }));
     expect(screen.getByRole('button', { name: 'Run target' }).getAttribute('title')).toBeNull();
-    expect(handleRunSelectedTarget).toHaveBeenCalledTimes(1);
-    expect(handleOpenSelectedTargetPath).toHaveBeenCalledTimes(1);
-    expect(handleDeleteSelectedTarget).toHaveBeenCalledTimes(1);
+    expect(spies.handleRunSelectedTarget).toHaveBeenCalledTimes(1);
+    expect(spies.handleOpenSelectedTargetPath).toHaveBeenCalledTimes(1);
+    expect(spies.handleDeleteSelectedTarget).toHaveBeenCalledTimes(1);
 
     rerender(
       <TargetEditor
@@ -440,185 +421,108 @@ describe('guided dashboard coverage', () => {
           draftSession: baseDocument.guidedSession,
           guidedDraft: baseDocument.guidedSession.draft,
           repairMode: false,
-          handleResetDraft,
+          handleResetDraft: spies.handleResetDraft,
         })}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Reset draft' }));
-    expect(handleResetDraft).toHaveBeenCalledTimes(1);
+    expect(spies.handleResetDraft).toHaveBeenCalledTimes(1);
   });
 
-  it('covers search, grouping, and every filter branch in the target table', () => {
-    const handleSelectTarget = vi.fn();
-    const setSearchQuery = vi.fn();
-    const setGroupBy = vi.fn();
-    const targets = [
-      makeTarget({
-        directoryName: 'release-http',
-        targetId: 'release_http',
-        displayName: 'Release HTTP',
-        sourceKind: 'http',
-        sourceLocator: 'https://example.com/releases',
-        selectionLabel: 'main article',
-        compareBasis: 'inner_html',
-        statusKind: 'changed',
-        lastRunOutcome: 'changed',
-      }),
-      makeTarget({
-        directoryName: 'release-http-duplicate',
-        targetId: 'release_http_duplicate',
-        displayName: 'Release HTTP duplicate',
-        sourceKind: 'http',
-        sourceLocator: 'https://example.com/releases/duplicate',
-        selectionLabel: 'main article',
-        compareBasis: 'outer_html',
-        statusKind: 'changed',
-        lastRunOutcome: 'changed',
-      }),
-      makeTarget({
-        directoryName: 'release-file',
-        targetId: 'release_file',
-        displayName: 'Release file',
-        sourceKind: 'file',
-        sourceLocator: '/tmp/dataarm/release.html',
-        statusKind: 'ready',
-        lastRunOutcome: 'unchanged',
-      }),
-      makeTarget({
-        directoryName: 'release-pending',
-        targetId: 'release_pending',
-        displayName: 'Release pending',
-        sourceKind: 'file',
-        sourceLocator: '/tmp/dataarm/pending.html',
-        statusKind: 'pending',
-        lastRunOutcome: null,
-        lastRunAt: null,
-      }),
-      makeTarget({
-        directoryName: 'release-alert',
-        targetId: 'release_alert',
-        displayName: 'Release alert',
-        sourceKind: 'http',
-        sourceLocator: 'https://example.com/error',
-        statusKind: 'failed_transient',
-        lastRunOutcome: null,
-        errorMessage: 'Fetch failed',
-      }),
-    ];
+  it('renders busy labels and saved-target run guidance without hidden fallback branches', () => {
+    const { baseDocument } = makeGuidedFileDraft();
 
     const { rerender } = render(
-      <TargetTable
+      <TargetEditor
         state={makeDashboardState({
-          targets,
-          selectedTarget: targets[0] ?? null,
-          handleSelectTarget,
+          selectedTarget: makeTarget({
+            directoryName: 'release_digest',
+            targetId: 'release_digest',
+            displayName: 'Release digest',
+          }),
+          preview: { loading: true, error: null, data: null },
+          saving: true,
+          draftSession: baseDocument.guidedSession,
+          guidedDraft: baseDocument.guidedSession.draft,
+          repairMode: false,
         })}
-        filterView="all"
-        groupBy="status"
-        setGroupBy={setGroupBy}
-        searchQuery=""
-        setSearchQuery={setSearchQuery}
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Search targets'), {
-      target: { value: 'release' },
-    });
-    fireEvent.change(screen.getByLabelText('Group targets'), {
-      target: { value: 'none' },
-    });
-    fireEvent.click(
-      screen.getByText('Release file').closest('tr') ?? screen.getByText('Release file'),
-    );
-    fireEvent.keyDown(
-      screen.getByText('Release HTTP').closest('tr') ?? screen.getByText('Release HTTP'),
-      { key: 'Enter' },
-    );
-    fireEvent.keyDown(
-      screen.getByText('Release pending').closest('tr') ?? screen.getByText('Release pending'),
-      { key: ' ' },
-    );
-    fireEvent.keyDown(
-      screen.getByText('Release alert').closest('tr') ?? screen.getByText('Release alert'),
-      { key: 'Escape' },
-    );
-
-    expect(screen.getAllByText('Changed').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('First run').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Retry').length).toBeGreaterThan(0);
-    expect(setSearchQuery).toHaveBeenCalledWith('release');
-    expect(setGroupBy).toHaveBeenCalledWith('none');
-    expect(handleSelectTarget).toHaveBeenCalledWith('release-file');
-    expect(handleSelectTarget).toHaveBeenCalledWith('release-http');
-    expect(handleSelectTarget).toHaveBeenCalledWith('release-pending');
+    expect(screen.getByRole('button', { name: 'Previewing…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeTruthy();
 
     rerender(
-      <TargetTable
+      <TargetEditor
         state={makeDashboardState({
-          targets,
-          selectedTarget: targets[0] ?? null,
+          selectedTarget: makeTarget({
+            directoryName: 'release_digest',
+            targetId: 'release_digest',
+            displayName: 'Release digest',
+          }),
+          loadingTarget: true,
+          draftSession: baseDocument.guidedSession,
+          guidedDraft: baseDocument.guidedSession.draft,
+          repairMode: false,
         })}
-        filterView="http"
-        groupBy="source_kind"
-        searchQuery=""
       />,
     );
-    expect(screen.getByText('HTTP source')).toBeTruthy();
-    expect(screen.queryByText('Release file')).toBeNull();
+
+    expect(screen.getByRole('button', { name: 'Run target' }).getAttribute('title')).toBe(
+      'Wait for the selected target to finish loading.',
+    );
+
+    const delimiterDraft = {
+      ...baseDocument.guidedSession.draft,
+      kind: 'http' as const,
+      fetchMethod: null,
+      fetchTimeoutMs: null,
+      fetchUserAgent: null,
+      fetchFollowRedirects: true,
+      fetchAccept: null,
+      selectionKind: 'delimiter_pair' as const,
+      selectionMatch: 'single' as const,
+      selectionIndex: null,
+      selectionSelector: null,
+      selectionStart: null,
+      selectionEnd: null,
+      selectionDelimiterMode: null,
+      selectionIncludeStart: true,
+      selectionIncludeEnd: true,
+      selectionRegexFlags: [],
+      compareBasis: 'text' as const,
+      compareWhitespace: null,
+    };
 
     rerender(
-      <TargetTable
+      <TargetEditor
         state={makeDashboardState({
-          targets,
-          selectedTarget: targets[1] ?? null,
+          selectedTarget: null,
+          selectedDirectoryName: null,
+          isDraftContext: true,
+          editorMode: 'http',
+          draftSession: {
+            draft: delimiterDraft,
+            contractSeedToml: 'schema_name = "ffhn.target"\n',
+          },
+          guidedDraft: delimiterDraft,
+          repairMode: false,
+          draftToml: 'target_id = "release_watch"\n',
         })}
-        filterView="file"
-        groupBy="source_kind"
-        searchQuery=""
       />,
     );
-    expect(screen.getByText('File source')).toBeTruthy();
-    expect(screen.queryByText('Release alert')).toBeNull();
 
-    rerender(
-      <TargetTable
-        state={makeDashboardState({
-          targets,
-          selectedTarget: targets[2] ?? null,
-        })}
-        filterView="never_run"
-        groupBy="none"
-        searchQuery=""
-      />,
-    );
-    expect(screen.getByText('Release pending')).toBeTruthy();
-    expect(screen.queryByText('Release HTTP')).toBeNull();
-
-    rerender(
-      <TargetTable
-        state={makeDashboardState({
-          targets,
-          selectedTarget: targets[3] ?? null,
-        })}
-        filterView="attention"
-        groupBy="status"
-        searchQuery=""
-      />,
-    );
-    expect(screen.getByText('Fetch failed')).toBeTruthy();
-    expect(screen.queryByText('Release file')).toBeNull();
-
-    rerender(
-      <TargetTable
-        state={makeDashboardState({
-          targets,
-          selectedTarget: targets[0] ?? null,
-        })}
-        filterView="all"
-        groupBy="none"
-        searchQuery="does-not-exist"
-      />,
-    );
-    expect(screen.getByText('No targets match this search.')).toBeTruthy();
+    expect(screen.getByLabelText<HTMLSelectElement>('HTTP method').value).toBe('GET');
+    expect(screen.getByLabelText<HTMLSelectElement>('HTTP method').value).toBe('GET');
+    expect(screen.getByLabelText<HTMLInputElement>('Timeout (ms)').value).toBe('15000');
+    expect(screen.getByLabelText<HTMLInputElement>('Accept header').value).toBe('');
+    expect(screen.getByLabelText<HTMLInputElement>('User-Agent').value).toBe('');
+    expect(screen.getByLabelText<HTMLSelectElement>('Redirect policy').value).toBe('follow');
+    expect(screen.getByLabelText<HTMLInputElement>('Start delimiter').value).toBe('');
+    expect(screen.getByLabelText<HTMLInputElement>('End delimiter').value).toBe('');
+    expect(screen.getByLabelText<HTMLSelectElement>('Delimiter mode').value).toBe('literal');
+    expect(screen.getByLabelText<HTMLSelectElement>('Include start').value).toBe('true');
+    expect(screen.getByLabelText<HTMLSelectElement>('Include end').value).toBe('true');
+    expect(screen.getByLabelText<HTMLSelectElement>('Whitespace policy').value).toBe('normalize');
   });
 });

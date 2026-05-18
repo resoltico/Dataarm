@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 
 import { readAppVersionContract } from './lib/app-version.mjs';
 import { repoRoot } from './lib/artifact-roots.mjs';
+import { ghEnvironment } from './lib/gh-auth.mjs';
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -20,7 +21,7 @@ function runGh(args) {
   const result = spawnSync('gh', args, {
     cwd: repoRoot,
     encoding: 'utf8',
-    env: process.env,
+    env: ghEnvironment(),
     stdio: ['inherit', 'pipe', 'pipe'],
   });
 
@@ -49,10 +50,6 @@ const releaseTag =
 
 if (releaseTag !== expectedTag) {
   fail(`release tag ${releaseTag} does not match the canonical version ${expectedTag}`);
-}
-
-if (!process.env.GH_TOKEN) {
-  fail('GH_TOKEN must be set before verifying a GitHub release');
 }
 
 const publishedRelease = JSON.parse(

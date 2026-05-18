@@ -26,3 +26,20 @@ export function changelogSectionFor(version) {
 
   return notes;
 }
+
+export function releaseNotesFor(version, installGuideUrl = null) {
+  const notes = changelogSectionFor(version);
+
+  if (!installGuideUrl) {
+    return notes;
+  }
+
+  return [
+    notes,
+    '## First Launch On macOS',
+    'Current public macOS builds are ad-hoc signed but not notarized by Apple.',
+    'After dragging Dataarm into `/Applications`, use Finder `Open` or `System Settings` -> `Privacy & Security` -> `Open Anyway` if macOS blocks the first launch.',
+    'Terminal fallback after copying the app into `/Applications`: `xattr -dr com.apple.quarantine "/Applications/Dataarm.app"`',
+    `Terminal fallback and full install guidance: ${installGuideUrl}`,
+  ].join('\n\n');
+}

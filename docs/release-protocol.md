@@ -1,6 +1,6 @@
 # Release Protocol
 
-This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub release object. The maintained public asset surface is still intentionally narrow: one unsigned Apple Silicon DMG, one versioned packaging-manifest copy, and one SHA-256 manifest.
+This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub release object. The maintained public asset surface is still intentionally narrow: one ad-hoc signed but unnotarized Apple Silicon DMG, one versioned packaging-manifest copy, and one SHA-256 manifest.
 
 ## Phase Map
 
@@ -13,11 +13,11 @@ This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub rel
 - `npm run sync:app-version` is required after any intentional version change.
 - Release commits happen on `release/X.Y.Z`, not directly on `main`.
 - If dirty unpublished release-candidate work already lives in the primary checkout, capture it on `release-prep/X.Y.Z` first, then cut `release/X.Y.Z` from that captured commit instead of pretending dirty `main` was already release-ready.
-- `.github/workflows/package-unsigned-macos.yml` is a manual packaging smoke lane.
+- `.github/workflows/package-adhoc-signed-macos.yml` is a manual packaging smoke lane.
 - `.github/workflows/release.yml` is the tag-driven public publication lane.
 - `.cargo/config.toml` is the only maintained source for Cargo artifact directories; GitHub workflows must not override `CARGO_TARGET_DIR` or `CARGO_BUILD_BUILD_DIR`.
 - The GitHub release object is the authoritative publication record.
-- Current public assets remain unsigned and unnotarized until a future signing lane is wired deliberately.
+- Current public assets remain ad-hoc signed and unnotarized until a future Apple-authenticated signing and notarization lane is wired deliberately.
 
 ## 0. GitHub CLI Gate
 
@@ -36,11 +36,10 @@ Run the maintained gates first:
 mise install
 npm install
 npm run sync:app-version
-npm run fieldtest:backend
-npm run fieldtest:backend -- --live
-npm run quality:all
+npm run release-validation:backend
+npm run release-validation:backend:live
+npm run quality:ship
 npm run quality:miri
-npm run package:unsigned:dmg:macos-silicon
 ```
 
 Then verify:
@@ -50,7 +49,7 @@ Then verify:
 - `npm run verify:app-version` passes, proving the generated consumers stayed aligned.
 - `docs/developer-guide.md`, `docs/architecture.md`, `docs/hygiene.md`, [release-publishing.md](./release-publishing.md), and `scripts/README.md` describe the current embedded-runtime and release flow.
 - `vendor/dmg-packaging.json`, `vendor/quality-gates.json`, `vendor/release-publishing.json`, `vendor/runtime-dependencies.json`, and `vendor/tooling-refresh.json` match the maintained workflow and tooling posture.
-- `.github/workflows/quality-gates.yml`, `.github/workflows/package-unsigned-macos.yml`, and `.github/workflows/release.yml` all use the pinned Node runtime and current artifact names, and the Ubuntu `quality`/`miri` jobs still install the maintained Tauri Linux development packages before Rust runs.
+- `.github/workflows/quality-gates.yml`, `.github/workflows/package-adhoc-signed-macos.yml`, and `.github/workflows/release.yml` all use the pinned Node runtime and current artifact names, the Ubuntu `quality`/`miri` jobs still install the maintained Tauri Linux development packages before Rust runs, and the macOS `desktop-surface` job still proves the public DMG bundle shape.
 - If the release changes the embedded `ffhn-core` tag or version, update `vendor/runtime-dependencies.json` in the same change so the machine-readable intake policy stays aligned with the manifest.
 
 ## 2. Dirty Main Capture
@@ -122,6 +121,7 @@ gh pr checks <N>
 Required workflow jobs:
 
 - `quality`
+- `desktop-surface`
 - `miri`
 
 Fix any failing check before proceeding.

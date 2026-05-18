@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "current": "unsigned-apple-silicon-dmg-wired",
+  "current": "ad-hoc-signed-apple-silicon-dmg-wired",
   "displayAppName": "Dataarm",
   "internalDesktopPackageName": "dataarm",
   "bundleIdentifier": "com.resoltico.dataarm",
@@ -32,11 +32,12 @@
   ],
   "bundles": ["app", "dmg"],
   "buildScript": "npm run tauri:build:dmg:macos-silicon",
-  "githubWorkflow": ".github/workflows/package-unsigned-macos.yml",
+  "githubWorkflow": ".github/workflows/package-adhoc-signed-macos.yml",
   "githubRunner": "macos-15",
-  "githubArtifactName": "dataarm-unsigned-macos-apple-silicon-dmg",
+  "githubArtifactName": "dataarm-ad-hoc-signed-macos-apple-silicon-dmg",
   "githubArtifactManifest": "../.dataarm-artifacts/ci-artifacts/github-packaging-manifest.json",
-  "signing": "disabled",
+  "signing": "ad-hoc",
   "notarization": "disabled",
-  "note": "DMG packaging is intentionally wired only for Apple Silicon macOS builds. package-unsigned-macos.yml is now the manual packaging smoke lane, while release.yml owns the public GitHub release object. Packaging stays unsigned and unnotarized until a future signing lane is wired deliberately. The shipped app bundle must carry its legal surface under Contents/SharedSupport/Legal so release binaries include the project license, dependency notice posture, patent notes, and exact dependency lockfiles."
+  "nativeSmokeRuntimeContract": "embedded-ffhn-core",
+  "note": "DMG packaging is intentionally wired only for Apple Silicon macOS builds. package-adhoc-signed-macos.yml is now the manual packaging smoke lane, while release.yml owns the public GitHub release object. Packaging stays ad-hoc signed and unnotarized until a future Apple-authenticated signing and notarization lane is wired deliberately. The shipped app bundle must carry its legal surface under Contents/SharedSupport/Legal so release binaries include the project license, dependency notice posture, patent notes, and exact dependency lockfiles, and the packaging collector must prove that the bundled app launches through a native smoke path before publication."
 }

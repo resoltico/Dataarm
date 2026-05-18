@@ -16,9 +16,9 @@
   },
   "miri": {
     "command": "node scripts/run-miri.mjs",
-    "ownedSeam": "desktop-target-run-embedded-runtime",
-    "targetTest": "execute_target_run_persists_runtime_artifacts_for_file_targets",
-    "note": "The desktop Miri lane proves the Tauri-to-ffhn-core embedded target-run seam. ffhn-core owns the deeper engine and selector-stack proof in its own repository."
+    "ownedSeam": "desktop-target-persistence-round-trip",
+    "targetTest": "logic::targets::tests::persist_and_read_target_round_trip_preserves_guided_seed_for_delimited_targets",
+    "note": "The desktop Miri lane proves Dataarm-owned target persistence and guided-seed round-tripping. ffhn-core owns the deeper engine and selector-stack proof in its own repository."
   },
   "patchPolicy": {
     "active": false,

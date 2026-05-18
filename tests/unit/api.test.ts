@@ -1,28 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { invoke, mockDesktop } = vi.hoisted(() => ({
+const { invoke, browserWorkbenchClient } = vi.hoisted(() => ({
   invoke: vi.fn(),
-  mockDesktop: {
-    bootstrapMock: vi.fn(),
-    openWorkspaceMock: vi.fn(),
-    refreshWorkspaceMock: vi.fn(),
-    createWorkspaceMock: vi.fn(),
-    readTargetMock: vi.fn(),
-    getTargetTemplateMock: vi.fn(),
-    previewTargetMock: vi.fn(),
-    saveTargetMock: vi.fn(),
-    updateNotificationSettingsMock: vi.fn(),
-    clearNotificationFeedMock: vi.fn(),
-    deleteTargetMock: vi.fn(),
-    runTargetMock: vi.fn(),
-    runWorkspaceMock: vi.fn(),
-    openWorkspacePathMock: vi.fn(),
-    openTargetPathMock: vi.fn(),
+  browserWorkbenchClient: {
+    bootstrapWorkbench: vi.fn(),
+    openWorkspaceWorkbench: vi.fn(),
+    refreshWorkspaceWorkbench: vi.fn(),
+    createWorkspaceWorkbench: vi.fn(),
+    readTargetWorkbench: vi.fn(),
+    getTargetTemplateWorkbench: vi.fn(),
+    previewTargetWorkbench: vi.fn(),
+    saveTargetWorkbench: vi.fn(),
+    updateNotificationSettingsWorkbench: vi.fn(),
+    clearNotificationFeedWorkbench: vi.fn(),
+    deleteTargetWorkbench: vi.fn(),
+    runTargetWorkbench: vi.fn(),
+    runWorkspaceWorkbench: vi.fn(),
+    openWorkspacePathWorkbench: vi.fn(),
+    openTargetPathWorkbench: vi.fn(),
   },
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke }));
-vi.mock('../../src/lib/mockDesktop', () => mockDesktop);
+vi.mock('../../src/lib/browserWorkbenchClient', () => browserWorkbenchClient);
 
 import * as api from '../../src/lib/api';
 
@@ -40,9 +40,10 @@ describe('desktop api bridge', () => {
       configurable: true,
       value: originalWindow,
     });
+    vi.unstubAllEnvs();
   });
 
-  it('routes every command to the mock backend when tauri internals are absent', async () => {
+  it('routes every command to the browser workbench backend when tauri internals are absent', async () => {
     const targetTemplate = {
       kind: 'http',
       draftSession: {
@@ -74,25 +75,27 @@ describe('desktop api bridge', () => {
           compareCanonicalizers: [],
           storageHistoryLimit: 20,
         },
-        contractSeed: {},
+        contractSeedToml: 'schema_name = "ffhn.target"\n',
       },
       canonicalToml: 'target_id = "http"\n',
     };
-    mockDesktop.bootstrapMock.mockResolvedValue('bootstrap');
-    mockDesktop.openWorkspaceMock.mockResolvedValue('open-workspace');
-    mockDesktop.refreshWorkspaceMock.mockResolvedValue('refresh-workspace');
-    mockDesktop.createWorkspaceMock.mockResolvedValue('create-workspace');
-    mockDesktop.readTargetMock.mockResolvedValue('read-target');
-    mockDesktop.getTargetTemplateMock.mockResolvedValue(targetTemplate);
-    mockDesktop.previewTargetMock.mockResolvedValue('preview-target');
-    mockDesktop.saveTargetMock.mockResolvedValue('save-target');
-    mockDesktop.updateNotificationSettingsMock.mockResolvedValue('update-notifications');
-    mockDesktop.clearNotificationFeedMock.mockResolvedValue('clear-feed');
-    mockDesktop.deleteTargetMock.mockResolvedValue('delete-target');
-    mockDesktop.runTargetMock.mockResolvedValue('run-target');
-    mockDesktop.runWorkspaceMock.mockResolvedValue('run-workspace');
-    mockDesktop.openWorkspacePathMock.mockResolvedValue(undefined);
-    mockDesktop.openTargetPathMock.mockResolvedValue(undefined);
+    browserWorkbenchClient.bootstrapWorkbench.mockResolvedValue('bootstrap');
+    browserWorkbenchClient.openWorkspaceWorkbench.mockResolvedValue('open-workspace');
+    browserWorkbenchClient.refreshWorkspaceWorkbench.mockResolvedValue('refresh-workspace');
+    browserWorkbenchClient.createWorkspaceWorkbench.mockResolvedValue('create-workspace');
+    browserWorkbenchClient.readTargetWorkbench.mockResolvedValue('read-target');
+    browserWorkbenchClient.getTargetTemplateWorkbench.mockResolvedValue(targetTemplate);
+    browserWorkbenchClient.previewTargetWorkbench.mockResolvedValue('preview-target');
+    browserWorkbenchClient.saveTargetWorkbench.mockResolvedValue('save-target');
+    browserWorkbenchClient.updateNotificationSettingsWorkbench.mockResolvedValue(
+      'update-notifications',
+    );
+    browserWorkbenchClient.clearNotificationFeedWorkbench.mockResolvedValue('clear-feed');
+    browserWorkbenchClient.deleteTargetWorkbench.mockResolvedValue('delete-target');
+    browserWorkbenchClient.runTargetWorkbench.mockResolvedValue('run-target');
+    browserWorkbenchClient.runWorkspaceWorkbench.mockResolvedValue('run-workspace');
+    browserWorkbenchClient.openWorkspacePathWorkbench.mockResolvedValue(undefined);
+    browserWorkbenchClient.openTargetPathWorkbench.mockResolvedValue(undefined);
 
     await expect(api.bootstrap()).resolves.toBe('bootstrap');
     await expect(api.openWorkspace('/tmp/demo')).resolves.toBe('open-workspace');
@@ -112,18 +115,19 @@ describe('desktop api bridge', () => {
     await expect(api.openWorkspacePath()).resolves.toBeUndefined();
     await expect(api.openTargetPath('demo')).resolves.toBeUndefined();
 
-    expect(mockDesktop.openWorkspaceMock).toHaveBeenCalledWith('/tmp/demo');
-    expect(mockDesktop.createWorkspaceMock).toHaveBeenCalledWith('/tmp/new');
-    expect(mockDesktop.getTargetTemplateMock).toHaveBeenCalledWith('http');
-    expect(mockDesktop.previewTargetMock).toHaveBeenCalledWith({ rawToml: 'raw' });
-    expect(mockDesktop.saveTargetMock).toHaveBeenCalledWith({ rawToml: 'raw' });
-    expect(mockDesktop.updateNotificationSettingsMock).toHaveBeenCalledWith({
+    expect(browserWorkbenchClient.openWorkspaceWorkbench).toHaveBeenCalledWith('/tmp/demo');
+    expect(browserWorkbenchClient.createWorkspaceWorkbench).toHaveBeenCalledWith('/tmp/new');
+    expect(browserWorkbenchClient.getTargetTemplateWorkbench).toHaveBeenCalledWith('http');
+    expect(browserWorkbenchClient.previewTargetWorkbench).toHaveBeenCalledWith({ rawToml: 'raw' });
+    expect(browserWorkbenchClient.saveTargetWorkbench).toHaveBeenCalledWith({ rawToml: 'raw' });
+    expect(browserWorkbenchClient.updateNotificationSettingsWorkbench).toHaveBeenCalledWith({
       notifyWhen: 'off',
       delivery: 'both',
     });
-    expect(mockDesktop.deleteTargetMock).toHaveBeenCalledWith('demo');
-    expect(mockDesktop.runTargetMock).toHaveBeenCalledWith('demo');
-    expect(mockDesktop.openTargetPathMock).toHaveBeenCalledWith('demo');
+    expect(browserWorkbenchClient.deleteTargetWorkbench).toHaveBeenCalledWith('demo');
+    expect(browserWorkbenchClient.runTargetWorkbench).toHaveBeenCalledWith('demo');
+    expect(browserWorkbenchClient.runWorkspaceWorkbench).toHaveBeenCalledWith(4);
+    expect(browserWorkbenchClient.openTargetPathWorkbench).toHaveBeenCalledWith('demo');
     expect(invoke).not.toHaveBeenCalled();
   });
 
@@ -168,7 +172,7 @@ describe('desktop api bridge', () => {
     expect(invoke).toHaveBeenNthCalledWith(15, 'open_target_path', { directoryName: 'demo' });
   });
 
-  it('treats non-browser runtimes as tauri hosts instead of using the mock backend', async () => {
+  it('treats non-browser runtimes as tauri hosts instead of using the browser workbench backend', async () => {
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
       value: undefined,
@@ -180,7 +184,18 @@ describe('desktop api bridge', () => {
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'bootstrap');
     expect(invoke).toHaveBeenNthCalledWith(2, 'open_workspace', { workspacePath: '/tmp/demo' });
-    expect(mockDesktop.bootstrapMock).not.toHaveBeenCalled();
-    expect(mockDesktop.openWorkspaceMock).not.toHaveBeenCalled();
+    expect(browserWorkbenchClient.bootstrapWorkbench).not.toHaveBeenCalled();
+    expect(browserWorkbenchClient.openWorkspaceWorkbench).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when a generic browser runtime omits the maintained backend contract', async () => {
+    vi.stubEnv('VITE_DATAARM_BROWSER_BACKEND', 'wrong_backend');
+
+    await expect(api.bootstrap()).rejects.toThrow(
+      'Browser runtime requires VITE_DATAARM_BROWSER_BACKEND=browser_workbench.',
+    );
+
+    expect(browserWorkbenchClient.bootstrapWorkbench).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

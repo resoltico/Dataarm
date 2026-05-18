@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { changelogSectionFor } from './lib/release-notes.mjs';
+import { changelogSectionFor, releaseNotesFor } from './lib/release-notes.mjs';
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -49,7 +49,7 @@ const requiredWorkflowSnippets = [
   'Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4',
   'Run release posture verification',
   'run: npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging && npm run verify:release-publishing && npm run verify:app-version',
-  'run: npm run package:unsigned:dmg:macos-silicon',
+  'run: npm run package:adhoc-signed:dmg:macos-silicon',
   'run: node scripts/build-release-checksums.mjs',
   'run: node scripts/publish-github-release.mjs',
   'run: node scripts/verify-github-release.mjs',
@@ -106,6 +106,28 @@ try {
   changelogSectionFor(versionPolicy.version);
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
+}
+
+const installGuidePath = String(releasePolicy.installGuidePath ?? '').trim();
+if (installGuidePath.length === 0) {
+  fail('vendor/release-publishing.json must declare installGuidePath for release-note guidance');
+}
+
+const renderedReleaseNotes = releaseNotesFor(
+  versionPolicy.version,
+  `https://example.invalid/${installGuidePath}`,
+);
+for (const requiredReleaseNoteSnippet of [
+  '## First Launch On macOS',
+  'Finder `Open`',
+  'Open Anyway',
+  'xattr -dr com.apple.quarantine "/Applications/Dataarm.app"',
+]) {
+  if (!renderedReleaseNotes.includes(requiredReleaseNoteSnippet)) {
+    fail(
+      `release notes generator is missing required guidance snippet: ${requiredReleaseNoteSnippet}`,
+    );
+  }
 }
 
 const expectedAssetTemplates = [
