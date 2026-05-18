@@ -163,6 +163,7 @@ const expectedSurfaces = [
       'lib/artifact-roots.d.mts',
       'lib/artifact-roots.mjs',
       'lib/hygiene.mjs',
+      'lib/release-notes.mjs',
       'publish-github-release.mjs',
       'report-hygiene.mjs',
       'run-miri.mjs',
