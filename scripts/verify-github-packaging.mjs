@@ -30,6 +30,7 @@ const requiredWorkflowSnippets = [
   'actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f',
   'node-version: 26.1.0',
   'dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9',
+  'toolchain: 1.95.0',
   'Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4',
   'Install frontend dependencies',
   'run: npm ci',

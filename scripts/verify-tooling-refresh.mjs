@@ -218,11 +218,20 @@ if (capability.permissions?.includes('shell:default')) {
 if (!qualityWorkflow.includes('node-version: 26.1.0')) {
   fail('quality-gates workflow node pin is out of sync');
 }
+if (!qualityWorkflow.includes('toolchain: 1.95.0')) {
+  fail('quality-gates workflow stable Rust pin is out of sync');
+}
 if (!packagingWorkflow.includes('node-version: 26.1.0')) {
   fail('package-unsigned-macos workflow node pin is out of sync');
 }
+if (!packagingWorkflow.includes('toolchain: 1.95.0')) {
+  fail('package-unsigned-macos workflow stable Rust pin is out of sync');
+}
 if (!releaseWorkflow.includes('node-version: 26.1.0')) {
   fail('release workflow node pin is out of sync');
+}
+if (!releaseWorkflow.includes('toolchain: 1.95.0')) {
+  fail('release workflow stable Rust pin is out of sync');
 }
 
 console.log('OK: tooling refresh verified');
