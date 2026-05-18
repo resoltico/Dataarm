@@ -98,6 +98,8 @@ This runs:
 
 The frontend coverage contract is intentionally split: `npm run test:unit` proves 100% line plus 100% branch coverage across the maintained React surface, while `npm run test:e2e` drives real desktop workbench flows against an instrumented Vite dev server and must emit runtime coverage evidence without filler assertions.
 
+The GitHub `quality` and `miri` jobs run on Ubuntu and must install the documented Tauri Linux development packages before any Rust lane executes. Keep that prerequisite step aligned with [.github/workflows/quality-gates.yml](../.github/workflows/quality-gates.yml) when changing CI or Tauri Linux requirements.
+
 ### Memory safety lane
 
 ```bash

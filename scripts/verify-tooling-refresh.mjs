@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const toolingPath = path.join(root, 'vendor', 'tooling-refresh.json');
+const qualityGatesPath = path.join(root, 'vendor', 'quality-gates.json');
 const packagePath = path.join(root, 'package.json');
 const cargoPath = path.join(root, 'src-tauri', 'Cargo.toml');
 const cargoConfigPath = path.join(root, '.cargo', 'config.toml');
@@ -22,6 +23,7 @@ function fail(message) {
 
 for (const required of [
   toolingPath,
+  qualityGatesPath,
   packagePath,
   cargoPath,
   cargoConfigPath,
@@ -47,6 +49,7 @@ if (fs.existsSync(path.join(root, '.node-version'))) {
 }
 
 const tooling = JSON.parse(fs.readFileSync(toolingPath, 'utf8'));
+const qualityGates = JSON.parse(fs.readFileSync(qualityGatesPath, 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const cargo = fs.readFileSync(cargoPath, 'utf8');
 const cargoConfig = fs.readFileSync(cargoConfigPath, 'utf8');
@@ -220,6 +223,15 @@ if (!qualityWorkflow.includes('node-version: 26.1.0')) {
 }
 if (!qualityWorkflow.includes('toolchain: 1.95.0')) {
   fail('quality-gates workflow stable Rust pin is out of sync');
+}
+if (!qualityWorkflow.includes('Install Linux native dependencies')) {
+  fail('quality-gates workflow must install Linux native dependencies for Tauri on Ubuntu');
+}
+for (const packageName of qualityGates.rust?.linuxCiPackages ?? []) {
+  const occurrences = qualityWorkflow.split(packageName).length - 1;
+  if (occurrences < 2) {
+    fail(`quality-gates workflow must install ${packageName} in both Ubuntu Rust jobs`);
+  }
 }
 if (!packagingWorkflow.includes('node-version: 26.1.0')) {
   fail('package-unsigned-macos workflow node pin is out of sync');

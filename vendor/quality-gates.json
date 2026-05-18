@@ -51,6 +51,17 @@
       "typos .",
       "npm run hygiene:verify"
     ],
+    "linuxCiPackages": [
+      "libwebkit2gtk-4.1-dev",
+      "build-essential",
+      "curl",
+      "wget",
+      "file",
+      "libxdo-dev",
+      "libssl-dev",
+      "libayatana-appindicator3-dev",
+      "librsvg2-dev"
+    ],
     "cargoDeny": "0.19.0",
     "typosCli": "1.44.0"
   },
@@ -76,5 +87,5 @@
     "command": "node scripts/run-miri.mjs",
     "note": "Pinned nightly chosen because miri is nightly-only; the wrapper targets one desktop-owned embedded-runtime seam test and adds -Zmiri-disable-isolation because Tauri startup probes the host executable path before any tests run."
   },
-  "note": "This file defines the enforced project quality posture. The Node runtime is pinned through .mise.toml, workflows are required to match that pin, the frontend coverage contract requires 100% line and branch coverage plus instrumented Playwright flow evidence, and the hygiene lane keeps heavyweight build artifacts in managed sibling roots instead of repo-local target trees."
+  "note": "This file defines the enforced project quality posture. The Node runtime is pinned through .mise.toml, workflows are required to match that pin, the Ubuntu quality workflow must install the documented Tauri Linux development packages before Rust lanes run, the frontend coverage contract requires 100% line and branch coverage plus instrumented Playwright flow evidence, and the hygiene lane keeps heavyweight build artifacts in managed sibling roots instead of repo-local target trees."
 }

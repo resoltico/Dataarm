@@ -46,7 +46,7 @@ Then verify:
 - `npm run verify:app-version` passes, proving the generated consumers stayed aligned.
 - `docs/developer-guide.md`, `docs/architecture.md`, `docs/hygiene.md`, [release-publishing.md](./release-publishing.md), and `scripts/README.md` describe the current embedded-runtime and release flow.
 - `vendor/dmg-packaging.json`, `vendor/quality-gates.json`, `vendor/release-publishing.json`, `vendor/runtime-dependencies.json`, and `vendor/tooling-refresh.json` match the maintained workflow and tooling posture.
-- `.github/workflows/quality-gates.yml`, `.github/workflows/package-unsigned-macos.yml`, and `.github/workflows/release.yml` all use the pinned Node runtime and current artifact names.
+- `.github/workflows/quality-gates.yml`, `.github/workflows/package-unsigned-macos.yml`, and `.github/workflows/release.yml` all use the pinned Node runtime and current artifact names, and the Ubuntu `quality`/`miri` jobs still install the maintained Tauri Linux development packages before Rust runs.
 - If the release changes the embedded `ffhn-core` tag or version, update `vendor/runtime-dependencies.json` in the same change so the machine-readable intake policy stays aligned with the manifest.
 
 ## 2. Dirty Main Capture

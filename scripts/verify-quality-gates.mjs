@@ -94,6 +94,17 @@ const expectedRustCommands = [
   'typos .',
   'npm run hygiene:verify',
 ];
+const expectedLinuxCiPackages = [
+  'libwebkit2gtk-4.1-dev',
+  'build-essential',
+  'curl',
+  'wget',
+  'file',
+  'libxdo-dev',
+  'libssl-dev',
+  'libayatana-appindicator3-dev',
+  'librsvg2-dev',
+];
 const expectedAllCommands = [
   'npm run quality:node',
   'npm run test:e2e',
@@ -173,6 +184,12 @@ if (JSON.stringify(parsed.node?.commands) !== JSON.stringify(expectedNodeCommand
 
 if (JSON.stringify(parsed.rust?.stableGates) !== JSON.stringify(expectedRustCommands)) {
   throw new Error('quality-gates rust.stableGates is out of sync with the supported quality lane');
+}
+
+if (JSON.stringify(parsed.rust?.linuxCiPackages) !== JSON.stringify(expectedLinuxCiPackages)) {
+  throw new Error(
+    'quality-gates rust.linuxCiPackages is out of sync with the supported Ubuntu Tauri prerequisite lane',
+  );
 }
 
 if (JSON.stringify(parsed.all?.commands) !== JSON.stringify(expectedAllCommands)) {
