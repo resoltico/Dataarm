@@ -18,7 +18,7 @@ All scripts in this directory are invoked through `package.json`. Use `npm run <
 | `npm run verify:dmg-packaging`        | `verify-dmg-packaging.mjs`        | Validates the local DMG packaging contract against `tauri.conf.json`, `Cargo.toml`, and `vendor/dmg-packaging.json`.                                 |
 | `npm run verify:github-packaging`     | `verify-github-packaging.mjs`     | Validates the GitHub packaging workflow against the maintained packaging posture.                                                                    |
 | `npm run verify:github-release`       | `verify-github-release.mjs`       | Verifies that the published GitHub release object exists, is no longer draft/prerelease, and exposes the maintained public asset inventory.          |
-| `npm run verify:release-publishing`   | `verify-release-publishing.mjs`   | Validates the tag-driven GitHub release workflow, release asset inventory, and publication contract.                                                 |
+| `npm run verify:release-publishing`   | `verify-release-publishing.mjs`   | Validates the tag-driven GitHub release workflow, release asset inventory, publication contract, and current-version changelog release notes.        |
 | `npm run hygiene:verify`              | `verify-hygiene.mjs`              | Fails if managed artifact policy drifted.                                                                                                            |
 
 ### Quality Wrappers

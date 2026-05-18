@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { changelogSectionFor } from './lib/release-notes.mjs';
+
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exit(1);
@@ -98,6 +100,12 @@ if (releasePolicy.releaseTitleTemplate !== 'Dataarm v{version}') {
 
 if (releasePolicy.releaseNotesSource !== 'CHANGELOG.md') {
   fail('vendor/release-publishing.json must use CHANGELOG.md as the release-notes source');
+}
+
+try {
+  changelogSectionFor(versionPolicy.version);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
 }
 
 const expectedAssetTemplates = [

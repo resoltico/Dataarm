@@ -12,6 +12,7 @@ import {
   repoRelativePath,
   repoRoot,
 } from './lib/artifact-roots.mjs';
+import { changelogSectionFor } from './lib/release-notes.mjs';
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -20,10 +21,6 @@ function fail(message) {
 
 function renderTemplate(template, version) {
   return String(template).replaceAll('{version}', version);
-}
-
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 function runGh(args, { capture = false, allowFailure = false } = {}) {
@@ -46,26 +43,6 @@ function runGh(args, { capture = false, allowFailure = false } = {}) {
   }
 
   return result;
-}
-
-function changelogSectionFor(version) {
-  const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
-  const sectionPattern = new RegExp(
-    `^## \\[${escapeRegex(version)}\\][^\\n]*\\n([\\s\\S]*?)(?=^## \\[|\\Z)`,
-    'mu',
-  );
-  const match = changelog.match(sectionPattern);
-
-  if (!match) {
-    fail(`CHANGELOG.md is missing a section for version ${version}`);
-  }
-
-  const notes = match[1].trim();
-  if (!notes) {
-    fail(`CHANGELOG.md section for version ${version} is empty`);
-  }
-
-  return notes;
 }
 
 const releasePolicy = JSON.parse(
@@ -109,7 +86,11 @@ for (const requiredFile of [dmgAssetPath, manifestAssetPath, checksumAssetPath])
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dataarm-release-'));
 const notesPath = path.join(tempDir, 'release-notes.md');
-fs.writeFileSync(notesPath, `${changelogSectionFor(versionContract.version)}\n`);
+try {
+  fs.writeFileSync(notesPath, `${changelogSectionFor(versionContract.version)}\n`);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
 
 try {
   const existingRelease = runGh(['release', 'view', releaseTag, '--json', 'isDraft,assets,url'], {
