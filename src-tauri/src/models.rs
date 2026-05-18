@@ -143,6 +143,7 @@ pub(crate) struct TargetSummary {
     pub(crate) directory_name: String,
     pub(crate) target_directory_path: String,
     pub(crate) target_id: Option<String>,
+    pub(crate) runnable_target_id: Option<String>,
     pub(crate) display_name: Option<String>,
     pub(crate) enabled: Option<bool>,
     pub(crate) source_kind: Option<String>,
@@ -165,6 +166,7 @@ pub(crate) struct TargetDocumentRecord {
     pub(crate) target_file_path: String,
     pub(crate) raw_toml: String,
     pub(crate) canonical_toml: Option<String>,
+    pub(crate) guided_session: Option<TargetDraftSession>,
     pub(crate) target_id: Option<String>,
     pub(crate) display_name: Option<String>,
     pub(crate) enabled: Option<bool>,
@@ -206,11 +208,65 @@ pub(crate) struct TargetArtifactHistory {
     pub(crate) snapshot_history: Vec<SnapshotArtifactRecord>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TargetDraftCanonicalizer {
+    pub(crate) kind: String,
+    pub(crate) pattern: Option<String>,
+    pub(crate) flags: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TargetDraft {
+    pub(crate) kind: String,
+    pub(crate) target_id: String,
+    pub(crate) display_name: String,
+    pub(crate) enabled: bool,
+    pub(crate) source_locator: String,
+    pub(crate) fetch_method: Option<String>,
+    pub(crate) fetch_timeout_ms: Option<u64>,
+    pub(crate) fetch_max_bytes: usize,
+    pub(crate) fetch_user_agent: Option<String>,
+    pub(crate) fetch_follow_redirects: Option<bool>,
+    pub(crate) fetch_accept: Option<String>,
+    pub(crate) selection_kind: String,
+    pub(crate) selection_match: String,
+    pub(crate) selection_index: Option<usize>,
+    pub(crate) selection_selector: Option<String>,
+    pub(crate) selection_start: Option<String>,
+    pub(crate) selection_end: Option<String>,
+    pub(crate) selection_delimiter_mode: Option<String>,
+    pub(crate) selection_include_start: Option<bool>,
+    pub(crate) selection_include_end: Option<bool>,
+    pub(crate) selection_regex_flags: Vec<String>,
+    pub(crate) compare_basis: String,
+    pub(crate) compare_whitespace: Option<String>,
+    pub(crate) compare_rewrite_urls: bool,
+    pub(crate) compare_canonicalizers: Vec<TargetDraftCanonicalizer>,
+    pub(crate) storage_history_limit: usize,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TargetDraftSession {
+    pub(crate) draft: TargetDraft,
+    pub(crate) contract_seed: Value,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TargetTemplate {
     pub(crate) kind: String,
-    pub(crate) raw_toml: String,
+    pub(crate) draft_session: TargetDraftSession,
+    pub(crate) canonical_toml: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TargetPreviewRequest {
+    pub(crate) draft_session: Option<TargetDraftSession>,
+    pub(crate) raw_toml: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -221,6 +277,9 @@ pub(crate) struct TargetPreview {
     pub(crate) canonical_toml: String,
     pub(crate) status_report: Value,
     pub(crate) dry_run_report: Value,
+    pub(crate) draft_session: TargetDraftSession,
+    pub(crate) preview_snapshot: Option<SnapshotArtifactRecord>,
+    pub(crate) preview_artifact_issues: Vec<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -260,7 +319,8 @@ pub(crate) struct SkippedDirectory {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TargetSaveRequest {
     pub(crate) previous_directory_name: Option<String>,
-    pub(crate) raw_toml: String,
+    pub(crate) draft_session: Option<TargetDraftSession>,
+    pub(crate) raw_toml: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]

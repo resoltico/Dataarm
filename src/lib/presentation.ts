@@ -1,4 +1,4 @@
-import type { JsonValue, TargetSummary, WorkspaceSource } from '../types';
+import type { JsonValue, TargetDraft, TargetSummary, WorkspaceSource } from '../types';
 
 export function titleCase(value: string) {
   return value
@@ -156,4 +156,25 @@ export function shortenPath(value: string, keep = 56) {
   }
 
   return `${value.slice(0, keep / 2)}…${value.slice(-(keep / 2 - 1))}`;
+}
+
+export function selectionLabelForDraft(draft: TargetDraft) {
+  if (draft.selectionKind === 'css_selector') {
+    const selector = draft.selectionSelector ?? 'selector';
+    if (draft.selectionMatch === 'nth') {
+      return `${selector} (nth ${String(draft.selectionIndex ?? 1)})`;
+    }
+    return `${selector} (${draft.selectionMatch})`;
+  }
+
+  const start = draft.selectionStart ?? 'start delimiter';
+  const end = draft.selectionEnd ?? 'end delimiter';
+  if (draft.selectionMatch === 'nth') {
+    return `${start} … ${end} (nth ${String(draft.selectionIndex ?? 1)})`;
+  }
+  return `${start} … ${end} (${draft.selectionMatch})`;
+}
+
+export function sourceLabelForDraft(draft: TargetDraft) {
+  return draft.sourceLocator.trim().length > 0 ? draft.sourceLocator : 'Source not configured yet.';
 }

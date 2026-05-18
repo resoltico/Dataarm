@@ -460,7 +460,7 @@ describe('TargetTable', () => {
     const { rerender } = render(<TargetTable state={state} filterView="all" />);
 
     expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
-    expect(screen.getByText('Changed')).toBeTruthy();
+    expect(screen.getAllByText('Changed').length).toBeGreaterThan(0);
     expect(screen.getByText('New baseline')).toBeTruthy();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     expect(screen.getByText('Failed to connect')).toBeTruthy();
@@ -497,7 +497,7 @@ describe('TargetTable', () => {
     fireEvent.click(
       screen.getByText('Changed target').closest('tr') ?? screen.getByText('Changed target'),
     );
-    expect(handleSelectTarget).toHaveBeenCalledTimes(2);
+    expect(handleSelectTarget).toHaveBeenCalledTimes(3);
 
     rerender(
       <TargetTable
@@ -570,7 +570,8 @@ describe('TargetEditor and StatusPill', () => {
     );
 
     expect(screen.getByText(/authoring a new file target/u)).toBeTruthy();
-    expect(screen.getByText('Preview before saving to validate the target contract.')).toBeTruthy();
+    expect(screen.getByText(/Guided contract:/u)).toBeTruthy();
+    expect(screen.getByLabelText('Canonical target TOML')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Delete target' })).toBeNull();
     expect(screen.getByText('Change Detected')).toBeTruthy();
     expect(screen.getByText('Retry now')).toBeTruthy();

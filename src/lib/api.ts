@@ -23,16 +23,13 @@ import type {
   TargetDocumentRecord,
   TargetMutationResult,
   TargetPreview,
+  TargetPreviewRequest,
+  TargetSaveRequest,
   TargetRunResult,
   TargetTemplate,
   TargetTemplateKind,
   WorkspaceSnapshot,
 } from '../types';
-
-type SaveTargetRequest = {
-  previousDirectoryName?: string | null;
-  rawToml: string;
-};
 
 function shouldUseMockBackend() {
   return typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window);
@@ -80,14 +77,14 @@ export async function getTargetTemplate(kind: TargetTemplateKind): Promise<Targe
   return invoke('get_target_template', { kind });
 }
 
-export async function previewTarget(rawToml: string): Promise<TargetPreview> {
+export async function previewTarget(request: TargetPreviewRequest): Promise<TargetPreview> {
   if (shouldUseMockBackend()) {
-    return previewTargetMock(rawToml);
+    return previewTargetMock(request);
   }
-  return invoke('preview_target', { rawToml });
+  return invoke('preview_target', { request });
 }
 
-export async function saveTarget(request: SaveTargetRequest): Promise<TargetMutationResult> {
+export async function saveTarget(request: TargetSaveRequest): Promise<TargetMutationResult> {
   if (shouldUseMockBackend()) {
     return saveTargetMock(request);
   }

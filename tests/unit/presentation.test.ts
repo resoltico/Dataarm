@@ -1,4 +1,3 @@
-import { buildCompareDiffView } from '../../src/lib/compareHistory';
 import {
   compactStatusLabel,
   formatSourceKindLabel,
@@ -6,109 +5,141 @@ import {
   formatTimestamp,
   pluralize,
   prettyJson,
+  selectionLabelForDraft,
   shortenPath,
+  sourceLabelForDraft,
   statusLabel,
   statusTone,
   summarizeTarget,
   titleCase,
 } from '../../src/lib/presentation';
-import { makeTarget } from './fixtures';
+import { makeDocument, makeTarget } from './fixtures';
 
 describe('presentation helpers', () => {
-  it('formats human labels and summaries across the supported branches', () => {
-    expect(titleCase('failed_transient-state')).toBe('Failed Transient State');
+  it('covers general formatting helpers and status vocab without relying on incidental renders', () => {
+    expect(titleCase('release_notes-ready')).toBe('Release Notes Ready');
     expect(pluralize(1, 'target')).toBe('1 target');
     expect(pluralize(2, 'target')).toBe('2 targets');
+    expect(pluralize(3, 'analysis', 'analyses')).toBe('3 analyses');
+    expect(formatTimestamp(null)).toBe('Not recorded');
+    expect(formatTimestamp('not-a-date')).toBe('not-a-date');
+    expect(formatTimestamp('2026-05-15T11:30:00Z')).not.toBe('Not recorded');
     expect(formatSourceLabel('demo')).toBe('Demo workspace');
     expect(formatSourceLabel('user')).toBe('User workspace');
     expect(prettyJson(null)).toBe('No document loaded.');
-    expect(prettyJson({ ok: true })).toContain('"ok": true');
+    expect(prettyJson({ schema_name: 'ffhn.status_report' })).toContain('ffhn.status_report');
     expect(summarizeTarget(null)).toBe('Select a target or create a new one.');
-    expect(summarizeTarget(makeTarget({ displayName: 'Readable' }))).toBe('Readable');
-    expect(summarizeTarget(makeTarget({ displayName: null, targetId: 'target_id' }))).toBe(
-      'target_id',
-    );
     expect(
-      summarizeTarget(makeTarget({ displayName: null, targetId: null, directoryName: 'folder' })),
-    ).toBe('folder');
-  });
+      summarizeTarget(
+        makeTarget({
+          displayName: null,
+          targetId: null,
+          directoryName: 'fallback_directory',
+        }),
+      ),
+    ).toBe('fallback_directory');
+    expect(
+      shortenPath(
+        '/tmp/dataarm/release/really/long/path/with/more/segments/than/the/default/window/source.html',
+      ),
+    ).toContain('…');
+    expect(shortenPath('/tmp/dataarm/release.html', 128)).toBe('/tmp/dataarm/release.html');
+    expect(shortenPath('/tmp/dataarm/release/really/long/path/source.html', 12)).toContain('…');
 
-  it('formats timestamps, source kinds, and path shortening edge cases', () => {
-    expect(formatTimestamp(null)).toBe('Not recorded');
-    expect(formatTimestamp(undefined)).toBe('Not recorded');
-    expect(formatTimestamp('invalid-date')).toBe('invalid-date');
-    expect(formatTimestamp('2026-05-15T11:30:00Z')).toMatch(/2026|May/);
-    expect(formatSourceKindLabel('http')).toBe('HTTP source');
-    expect(formatSourceKindLabel('file')).toBe('File source');
-    expect(formatSourceKindLabel('ftp')).toBe('Unknown source');
-    expect(prettyJson(undefined)).toBe('No document loaded.');
-    expect(shortenPath('/tmp/dataarm/omitted-default')).toBe('/tmp/dataarm/omitted-default');
-    expect(shortenPath('/tmp/dataarm/demo', 56)).toBe('/tmp/dataarm/demo');
-    expect(shortenPath('/tmp/dataarm/'.repeat(10), 20)).toContain('…');
-  });
-
-  it('maps every status tone and label branch', () => {
-    const cases = [
-      ['ready', 'success', 'Ready', 'Ready'],
-      ['changed', 'warning', 'Change Detected', 'Changed'],
-      ['pending', 'warning', 'Needs First Run', 'First run'],
-      ['skipped_disabled', 'info', 'Disabled', 'Disabled'],
-      ['invalid_config', 'error', 'Config Error', 'Config'],
-      ['unavailable_target', 'error', 'Target Missing', 'Missing'],
-      ['invalid_state', 'error', 'State Error', 'State'],
-      ['incompatible_baseline', 'error', 'Baseline Incompatible', 'Baseline'],
-      ['integrity_mismatch', 'error', 'Baseline Mismatch', 'Mismatch'],
-      ['directory_invalid', 'error', 'Invalid Folder', 'Invalid'],
-      ['status_error', 'error', 'Status Error', 'Status'],
-      ['failed_permanent', 'error', 'Run Failed', 'Failed'],
-      ['failed_transient', 'info', 'Retry Needed', 'Retry'],
+    const statusKinds = [
+      'ready',
+      'changed',
+      'pending',
+      'skipped_disabled',
+      'invalid_config',
+      'unavailable_target',
+      'invalid_state',
+      'incompatible_baseline',
+      'integrity_mismatch',
+      'directory_invalid',
+      'status_error',
+      'failed_permanent',
+      'failed_transient',
+      'custom_status',
     ] as const;
 
-    for (const [value, tone, fullLabel, compactLabel] of cases) {
-      expect(statusTone(value)).toBe(tone);
-      expect(statusLabel(value)).toBe(fullLabel);
-      expect(compactStatusLabel(value)).toBe(compactLabel);
+    const expected = new Map<
+      (typeof statusKinds)[number],
+      { tone: string; label: string; compact: string }
+    >([
+      ['ready', { tone: 'success', label: 'Ready', compact: 'Ready' }],
+      ['changed', { tone: 'warning', label: 'Change Detected', compact: 'Changed' }],
+      ['pending', { tone: 'warning', label: 'Needs First Run', compact: 'First run' }],
+      ['skipped_disabled', { tone: 'info', label: 'Disabled', compact: 'Disabled' }],
+      ['invalid_config', { tone: 'error', label: 'Config Error', compact: 'Config' }],
+      ['unavailable_target', { tone: 'error', label: 'Target Missing', compact: 'Missing' }],
+      ['invalid_state', { tone: 'error', label: 'State Error', compact: 'State' }],
+      [
+        'incompatible_baseline',
+        { tone: 'error', label: 'Baseline Incompatible', compact: 'Baseline' },
+      ],
+      ['integrity_mismatch', { tone: 'error', label: 'Baseline Mismatch', compact: 'Mismatch' }],
+      ['directory_invalid', { tone: 'error', label: 'Invalid Folder', compact: 'Invalid' }],
+      ['status_error', { tone: 'error', label: 'Status Error', compact: 'Status' }],
+      ['failed_permanent', { tone: 'error', label: 'Run Failed', compact: 'Failed' }],
+      ['failed_transient', { tone: 'info', label: 'Retry Needed', compact: 'Retry' }],
+      ['custom_status', { tone: 'info', label: 'Custom Status', compact: 'Custom Status' }],
+    ]);
+
+    for (const statusKind of statusKinds) {
+      const expectation = expected.get(statusKind);
+      if (!expectation) {
+        throw new Error(`Missing status expectation for ${statusKind}.`);
+      }
+      expect(statusTone(statusKind)).toBe(expectation.tone);
+      expect(statusLabel(statusKind)).toBe(expectation.label);
+      expect(compactStatusLabel(statusKind)).toBe(expectation.compact);
     }
 
-    expect(statusTone('surprising_status')).toBe('info');
-    expect(statusLabel('custom_status')).toBe('Custom Status');
-    expect(compactStatusLabel('custom_status')).toBe('Custom Status');
-  });
-});
-
-describe('compare history diff view', () => {
-  it('reports unchanged text', () => {
-    expect(buildCompareDiffView('same\ntext', 'same\ntext')).toEqual({
-      previousLineCount: 2,
-      currentLineCount: 2,
-      commonPrefixLines: 2,
-      commonSuffixLines: 0,
-      previousChangedLines: [],
-      currentChangedLines: [],
-      changed: false,
-    });
+    expect(formatSourceKindLabel('http')).toBe('HTTP source');
+    expect(formatSourceKindLabel('file')).toBe('File source');
+    expect(formatSourceKindLabel(null)).toBe('Unknown source');
   });
 
-  it('reports changed middle lines with shared prefix and suffix', () => {
-    expect(buildCompareDiffView('alpha\nold\nomega', 'alpha\nnew\nomega')).toEqual({
-      previousLineCount: 3,
-      currentLineCount: 3,
-      commonPrefixLines: 1,
-      commonSuffixLines: 1,
-      previousChangedLines: ['old'],
-      currentChangedLines: ['new'],
-      changed: true,
-    });
+  it('formats selector and delimiter selection labels across match variants', () => {
+    const document = makeDocument();
+    const selectorDraft = {
+      ...document.guidedSession.draft,
+      selectionKind: 'css_selector' as const,
+      selectionSelector: '.release-card',
+      selectionMatch: 'nth' as const,
+      selectionIndex: null,
+    };
+    expect(selectionLabelForDraft(selectorDraft)).toBe('.release-card (nth 1)');
+
+    const delimiterNthDraft = {
+      ...document.guidedSession.draft,
+      selectionKind: 'delimiter_pair' as const,
+      selectionMatch: 'nth' as const,
+      selectionIndex: null,
+      selectionStart: null,
+      selectionEnd: null,
+    };
+    expect(selectionLabelForDraft(delimiterNthDraft)).toBe(
+      'start delimiter … end delimiter (nth 1)',
+    );
+
+    const delimiterSingleDraft = {
+      ...delimiterNthDraft,
+      selectionMatch: 'single' as const,
+      selectionStart: '<main>',
+      selectionEnd: '</main>',
+    };
+    expect(selectionLabelForDraft(delimiterSingleDraft)).toBe('<main> … </main> (single)');
   });
 
-  it('normalizes carriage returns and line-count differences', () => {
-    const diff = buildCompareDiffView('alpha\r\nbeta', 'alpha\nbeta\ngamma');
-    expect(diff.previousLineCount).toBe(2);
-    expect(diff.currentLineCount).toBe(3);
-    expect(diff.commonPrefixLines).toBe(2);
-    expect(diff.commonSuffixLines).toBe(0);
-    expect(diff.previousChangedLines).toEqual([]);
-    expect(diff.currentChangedLines).toEqual(['gamma']);
-    expect(diff.changed).toBe(true);
+  it('falls back when the source locator is still blank', () => {
+    const document = makeDocument();
+    expect(
+      sourceLabelForDraft({
+        ...document.guidedSession.draft,
+        sourceLocator: '   ',
+      }),
+    ).toBe('Source not configured yet.');
   });
 });

@@ -37,8 +37,8 @@ The embedded runtime line is now the released `ffhn-core v8.0.0` contract with n
 - `hooks/useDashboardState.ts` owns frontend state, async actions, and Tauri API calls
 - `components/layout/` renders the shell, workspace rail, and main dashboard panes
 - `components/dashboard/TargetTable.tsx` is the canonical desktop target inventory surface
-- `components/dashboard/DetailPanel.tsx` owns target history, compare-diff browsing, and artifact inspection
-- `components/dashboard/TargetEditor.tsx` renders raw `target.toml` editing and action controls
+- `components/dashboard/DetailPanel.tsx` owns draft preview inspection, target history, compare-diff browsing, and artifact inspection
+- `components/dashboard/TargetEditor.tsx` renders guided target authoring with a raw `target.toml` repair fallback
 - `lib/api.ts` is the canonical frontend-to-backend contract surface
 - `lib/mockDesktop.ts` provides a browser-safe mock backend for Vite and Playwright
 - `lib/presentation.ts` holds pure formatting and presentation helpers
@@ -72,6 +72,12 @@ For each target directory, the desktop treats these files as canonical:
 - `snapshots/`
 
 The backend derives UI-facing summaries from those files plus the canonical `ffhn-core` status and run reports. The frontend caches the returned snapshot, but it does not become a second source of truth.
+
+Inventory summaries intentionally distinguish between a displayable target identifier and a truly runnable target identity. Workspace runnable counts and batch execution derive from the runnable identity only, so a directory can still surface useful operator context without being overpromoted into the executable set.
+
+Guided authoring is an operator-facing projection over that canonical target contract, not a second persistence model. The backend owns the draft-session shape returned to the frontend, serializes it back into canonical `target.toml`, and falls back to raw repair mode only when the durable target document can no longer be projected honestly.
+
+Preview inspection uses the same canonical runtime contract. `ffhn-core` dry-run remains non-persisting, so Dataarm materializes one disposable run inside a temporary preview workspace whenever the operator asks to inspect rendered output, compare payloads, or extraction metadata before saving.
 
 The desktop also owns one explicit runtime-artifact adapter over those canonical files. Target detail loading reads `state.json`, `last_run.json`, and retained snapshot artifacts into one typed desktop contract instead of letting multiple frontend surfaces infer raw filesystem structure independently.
 

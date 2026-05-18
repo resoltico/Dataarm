@@ -1,13 +1,19 @@
-use super::runtime_artifacts::load_target_artifact_history;
+use super::runtime_artifacts::{
+    load_current_snapshot_artifact_by_convention, load_target_artifact_history,
+};
 use super::workspace::{
     canonical_target_toml, current_workspace, direct_child_directory_name, inventory_targets,
     read_target_document, resolve_existing_target_directory, workspace_snapshot,
 };
 use crate::models::{
-    AppState, SkippedDirectory, TargetDocumentRecord, TargetMutationResult, TargetPreview,
+    AppState, SkippedDirectory, TargetDocumentRecord, TargetDraft, TargetDraftCanonicalizer,
+    TargetDraftSession, TargetMutationResult, TargetPreview, TargetPreviewRequest,
     TargetSaveRequest, TargetTemplate, WorkspaceSnapshot,
 };
-use ffhn_core::{self, StateDocument, TargetDocument, TargetId};
+use ffhn_core::{
+    self, CompareBasis, DelimiterMode, HttpMethod, RegexFlag, SelectionKind, SelectionMatch,
+    StateDocument, TargetDocument, TargetId, WhitespaceMode,
+};
 use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, State};
@@ -72,8 +78,11 @@ pub(crate) fn read_target_logic(
         directory_name,
         target_directory_path: target_directory.display().to_string(),
         target_file_path: target_file.display().to_string(),
-        raw_toml,
+        raw_toml: raw_toml.clone(),
         canonical_toml,
+        guided_session: parsed_target_ref
+            .map(|target| target_draft_session(target, &raw_toml))
+            .transpose()?,
         target_id: parsed_target_ref.map(|target| target.target_id().to_owned()),
         display_name: parsed_target_ref.map(|target| target.display_name().to_owned()),
         enabled: parsed_target_ref.map(TargetDocument::enabled),
@@ -90,37 +99,64 @@ pub(crate) fn read_target_logic(
 }
 
 pub(crate) fn get_target_template_logic(kind: String) -> Result<TargetTemplate, String> {
-    let template = match kind.as_str() {
-        "http" => TargetTemplate {
-            kind,
-            raw_toml: http_target_template(),
-        },
-        "file" => TargetTemplate {
-            kind,
-            raw_toml: file_target_template(),
-        },
+    let raw_toml = match kind.as_str() {
+        "http" => http_target_template(),
+        "file" => file_target_template(),
         other => return Err(format!("Unknown target template kind: {other}")),
+    };
+    let target = read_target_document(&raw_toml)?;
+    let template = TargetTemplate {
+        kind,
+        draft_session: target_draft_session(&target, &raw_toml)?,
+        canonical_toml: canonical_target_toml(&target)?,
     };
     Ok(template)
 }
 
-pub(crate) fn preview_target_logic(raw_toml: String) -> Result<TargetPreview, String> {
+pub(crate) fn preview_target_logic(request: TargetPreviewRequest) -> Result<TargetPreview, String> {
+    let raw_toml = raw_toml_from_preview_request(&request)?;
     let target = read_target_document(&raw_toml)?;
     let canonical_toml = canonical_target_toml(&target)?;
     let temp = tempfile::tempdir().map_err(|error| format!("Failed to create tempdir: {error}"))?;
     let paths = materialize_target_document(temp.path(), &target, &canonical_toml)?;
     let status_report = ffhn_core::status(&paths).map_err(|error| error.to_string())?;
     let dry_run_report = ffhn_core::run_once_dry_run(&paths).map_err(|error| error.to_string())?;
+    let mut preview_artifact_issues = Vec::new();
+    let preview_snapshot = match load_preview_snapshot_artifact(&paths) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            preview_artifact_issues.push(error);
+            None
+        }
+    };
 
     Ok(TargetPreview {
         target_id: target.target_id().to_owned(),
         display_name: target.display_name().to_owned(),
         canonical_toml,
+        draft_session: target_draft_session(&target, &raw_toml)?,
         status_report: serde_json::to_value(status_report)
             .map_err(|error| format!("Failed to encode status report: {error}"))?,
         dry_run_report: serde_json::to_value(dry_run_report)
             .map_err(|error| format!("Failed to encode dry-run report: {error}"))?,
+        preview_snapshot,
+        preview_artifact_issues,
     })
+}
+
+fn load_preview_snapshot_artifact(
+    paths: &ffhn_core::TargetPaths,
+) -> Result<Option<crate::models::SnapshotArtifactRecord>, String> {
+    let preview_snapshot = load_current_snapshot_artifact_by_convention(&paths.target_dir())?;
+    if preview_snapshot.is_some() {
+        return Ok(preview_snapshot);
+    }
+
+    // FFHN dry-run is contractually non-persisting, so Dataarm materializes one disposable live
+    // run inside the temp preview workspace when the inspection workbench needs concrete artifacts.
+    let _ = ffhn_core::run_once(paths)
+        .map_err(|error| format!("Failed to materialize preview snapshot artifacts: {error}"))?;
+    load_current_snapshot_artifact_by_convention(&paths.target_dir())
 }
 
 pub(crate) fn save_target_logic(
@@ -173,7 +209,8 @@ pub(crate) fn persist_target_document(
     workspace: &Path,
     request: &TargetSaveRequest,
 ) -> Result<String, String> {
-    let target = read_target_document(&request.raw_toml)?;
+    let raw_toml = raw_toml_from_save_request(request)?;
+    let target = read_target_document(&raw_toml)?;
     let canonical_toml = canonical_target_toml(&target)?;
     let next_directory_name = target.target_id().to_owned();
     let next_target_directory = workspace.join(&next_directory_name);
@@ -233,7 +270,7 @@ pub(crate) fn execute_workspace_run(
     let mut target_ids = Vec::new();
 
     for target in &targets {
-        match &target.target_id {
+        match &target.runnable_target_id {
             Some(target_id) => {
                 target_ids
                     .push(TargetId::new(target_id.clone()).map_err(|error| error.to_string())?);
@@ -338,6 +375,462 @@ kind = "trim"
 kind = "collapse_whitespace"
 "#
     .to_owned()
+}
+
+fn raw_toml_from_preview_request(request: &TargetPreviewRequest) -> Result<String, String> {
+    raw_toml_from_optional_input(
+        request.draft_session.as_ref(),
+        request.raw_toml.as_deref(),
+        "preview",
+    )
+}
+
+fn raw_toml_from_save_request(request: &TargetSaveRequest) -> Result<String, String> {
+    raw_toml_from_optional_input(
+        request.draft_session.as_ref(),
+        request.raw_toml.as_deref(),
+        "save",
+    )
+}
+
+fn raw_toml_from_optional_input(
+    draft_session: Option<&TargetDraftSession>,
+    raw_toml: Option<&str>,
+    operation: &str,
+) -> Result<String, String> {
+    match (draft_session, raw_toml) {
+        (Some(_), Some(_)) => Err(format!(
+            "Target {operation} requests must choose guided draft input or raw TOML, not both."
+        )),
+        (Some(session), None) => build_raw_toml_from_session(session),
+        (None, Some(raw_toml)) => Ok(raw_toml.to_owned()),
+        (None, None) => Err(format!(
+            "Target {operation} requests must provide guided draft input or raw TOML."
+        )),
+    }
+}
+
+fn target_draft_session(
+    target: &TargetDocument,
+    raw_toml: &str,
+) -> Result<TargetDraftSession, String> {
+    Ok(TargetDraftSession {
+        draft: TargetDraft {
+            kind: if target.source_url().is_some() {
+                "http".to_owned()
+            } else if target.file_path().is_some() {
+                "file".to_owned()
+            } else {
+                return Err("Guided drafts require a file or HTTP source locator.".to_owned());
+            },
+            target_id: target.target_id().to_owned(),
+            display_name: target.display_name().to_owned(),
+            enabled: target.enabled(),
+            source_locator: target
+                .source_url()
+                .map(|source| source.as_str().to_owned())
+                .or_else(|| target.file_path().map(ToOwned::to_owned))
+                .unwrap_or_default(),
+            fetch_method: target.fetch_http_method().map(http_method_token),
+            fetch_timeout_ms: target.fetch_timeout_ms(),
+            fetch_max_bytes: target.fetch_max_bytes(),
+            fetch_user_agent: target.fetch_user_agent().map(ToOwned::to_owned),
+            fetch_follow_redirects: target.fetch_follow_redirects(),
+            fetch_accept: target.fetch_accept().map(ToOwned::to_owned),
+            selection_kind: selection_kind_token(target.selection_kind()).to_owned(),
+            selection_match: selection_match_token(target.selection_match()).to_owned(),
+            selection_index: target.selection_index(),
+            selection_selector: target.selection_selector().map(ToOwned::to_owned),
+            selection_start: target.selection_start().map(ToOwned::to_owned),
+            selection_end: target.selection_end().map(ToOwned::to_owned),
+            selection_delimiter_mode: target
+                .selection_delimiter_mode()
+                .map(delimiter_mode_token)
+                .map(ToOwned::to_owned),
+            selection_include_start: target.selection_include_start(),
+            selection_include_end: target.selection_include_end(),
+            selection_regex_flags: target
+                .selection_regex_flags()
+                .iter()
+                .map(regex_flag_token)
+                .map(ToOwned::to_owned)
+                .collect(),
+            compare_basis: compare_basis_token(target.compare_basis()).to_owned(),
+            compare_whitespace: target
+                .compare_whitespace()
+                .map(whitespace_mode_token)
+                .map(ToOwned::to_owned),
+            compare_rewrite_urls: target.compare_rewrite_urls(),
+            compare_canonicalizers: target
+                .compare_canonicalization()
+                .iter()
+                .map(|canonicalizer| TargetDraftCanonicalizer {
+                    kind: canonicalizer.kind().as_str().to_owned(),
+                    pattern: canonicalizer.pattern().map(ToOwned::to_owned),
+                    flags: canonicalizer
+                        .flags()
+                        .iter()
+                        .map(regex_flag_token)
+                        .map(ToOwned::to_owned)
+                        .collect(),
+                })
+                .collect(),
+            storage_history_limit: target.storage_history_limit(),
+        },
+        contract_seed: serde_json::to_value(parse_contract_seed(raw_toml)?)
+            .map_err(|error| format!("Failed to encode guided target seed: {error}"))?,
+    })
+}
+
+fn parse_contract_seed(raw_toml: &str) -> Result<toml::Table, String> {
+    toml::from_str(raw_toml)
+        .map_err(|error| format!("Failed to decode guided target seed: {error}"))
+}
+
+fn build_raw_toml_from_session(session: &TargetDraftSession) -> Result<String, String> {
+    let mut contract_seed = serde_json::from_value::<toml::Table>(session.contract_seed.clone())
+        .map_err(|error| format!("Failed to decode guided target seed: {error}"))?;
+    apply_draft_to_contract_seed(&mut contract_seed, &session.draft)?;
+    toml::to_string_pretty(&contract_seed)
+        .map_err(|error| format!("Failed to serialize guided target draft: {error}"))
+}
+
+fn apply_draft_to_contract_seed(seed: &mut toml::Table, draft: &TargetDraft) -> Result<(), String> {
+    seed.insert("schema_name".to_owned(), toml_string("ffhn.target"));
+    seed.insert("schema_version".to_owned(), toml_integer(4));
+    seed.insert(
+        "target_id".to_owned(),
+        toml_string(draft.target_id.as_str()),
+    );
+    seed.insert(
+        "display_name".to_owned(),
+        toml_string(draft.display_name.as_str()),
+    );
+    seed.insert("enabled".to_owned(), toml_boolean(draft.enabled));
+
+    let mut target_table = match (
+        read_nested_string(seed.get("target"), "kind"),
+        draft.kind.as_str(),
+    ) {
+        (Some(existing_kind), next_kind) if existing_kind == next_kind => {
+            cloned_table(seed.get("target"))
+        }
+        _ => toml::Table::new(),
+    };
+    remove_keys(&mut target_table, &["kind", "source_url", "file_path"]);
+    target_table.insert("kind".to_owned(), toml_string(draft.kind.as_str()));
+    match draft.kind.as_str() {
+        "http" => target_table.insert(
+            "source_url".to_owned(),
+            toml_string(draft.source_locator.as_str()),
+        ),
+        "file" => target_table.insert(
+            "file_path".to_owned(),
+            toml_string(draft.source_locator.as_str()),
+        ),
+        other => return Err(format!("Unsupported guided target kind: {other}")),
+    };
+    seed.insert("target".to_owned(), toml::Value::Table(target_table));
+
+    let mut fetch_table = match (
+        read_nested_string(seed.get("fetch"), "engine"),
+        draft.kind.as_str(),
+    ) {
+        (Some(existing_engine), next_engine) if existing_engine == next_engine => {
+            cloned_table(seed.get("fetch"))
+        }
+        _ => toml::Table::new(),
+    };
+    remove_keys(
+        &mut fetch_table,
+        &[
+            "engine",
+            "method",
+            "timeout_ms",
+            "max_bytes",
+            "user_agent",
+            "follow_redirects",
+            "accept",
+        ],
+    );
+    fetch_table.insert("engine".to_owned(), toml_string(draft.kind.as_str()));
+    fetch_table.insert(
+        "max_bytes".to_owned(),
+        toml_integer(draft.fetch_max_bytes as i64),
+    );
+    if draft.kind == "http" {
+        fetch_table.insert(
+            "method".to_owned(),
+            toml_string(draft.fetch_method.as_deref().unwrap_or("GET")),
+        );
+        fetch_table.insert(
+            "timeout_ms".to_owned(),
+            toml_integer(draft.fetch_timeout_ms.unwrap_or(15_000) as i64),
+        );
+        fetch_table.insert(
+            "user_agent".to_owned(),
+            toml_string(
+                draft
+                    .fetch_user_agent
+                    .as_deref()
+                    .unwrap_or("dataarm/template"),
+            ),
+        );
+        fetch_table.insert(
+            "follow_redirects".to_owned(),
+            toml_boolean(draft.fetch_follow_redirects.unwrap_or(true)),
+        );
+        fetch_table.insert(
+            "accept".to_owned(),
+            toml_string(
+                draft
+                    .fetch_accept
+                    .as_deref()
+                    .unwrap_or("text/html,application/xhtml+xml"),
+            ),
+        );
+    }
+    seed.insert("fetch".to_owned(), toml::Value::Table(fetch_table));
+
+    let mut selection_table = match (
+        read_nested_string(seed.get("selection"), "kind"),
+        draft.selection_kind.as_str(),
+    ) {
+        (Some(existing_kind), next_kind) if existing_kind == next_kind => {
+            cloned_table(seed.get("selection"))
+        }
+        _ => toml::Table::new(),
+    };
+    remove_keys(
+        &mut selection_table,
+        &[
+            "kind",
+            "match",
+            "index",
+            "selector",
+            "start",
+            "end",
+            "mode",
+            "include_start",
+            "include_end",
+            "flags",
+        ],
+    );
+    selection_table.insert(
+        "kind".to_owned(),
+        toml_string(draft.selection_kind.as_str()),
+    );
+    selection_table.insert(
+        "match".to_owned(),
+        toml_string(draft.selection_match.as_str()),
+    );
+    if draft.selection_match == "nth" {
+        let selection_index = draft
+            .selection_index
+            .ok_or_else(|| "Guided nth-match targets must include selectionIndex.".to_owned())?;
+        selection_table.insert("index".to_owned(), toml_integer(selection_index as i64));
+    }
+    match draft.selection_kind.as_str() {
+        "css_selector" => {
+            selection_table.insert(
+                "selector".to_owned(),
+                toml_string(draft.selection_selector.as_deref().unwrap_or("main")),
+            );
+        }
+        "delimiter_pair" => {
+            selection_table.insert(
+                "start".to_owned(),
+                toml_string(draft.selection_start.as_deref().unwrap_or("<main>")),
+            );
+            selection_table.insert(
+                "end".to_owned(),
+                toml_string(draft.selection_end.as_deref().unwrap_or("</main>")),
+            );
+            selection_table.insert(
+                "mode".to_owned(),
+                toml_string(
+                    draft
+                        .selection_delimiter_mode
+                        .as_deref()
+                        .unwrap_or("literal"),
+                ),
+            );
+            selection_table.insert(
+                "include_start".to_owned(),
+                toml_boolean(draft.selection_include_start.unwrap_or(false)),
+            );
+            selection_table.insert(
+                "include_end".to_owned(),
+                toml_boolean(draft.selection_include_end.unwrap_or(false)),
+            );
+            if !draft.selection_regex_flags.is_empty() {
+                selection_table.insert(
+                    "flags".to_owned(),
+                    toml::Value::Array(
+                        draft
+                            .selection_regex_flags
+                            .iter()
+                            .map(|flag| toml_string(flag.as_str()))
+                            .collect(),
+                    ),
+                );
+            }
+        }
+        other => return Err(format!("Unsupported guided selection kind: {other}")),
+    }
+    seed.insert("selection".to_owned(), toml::Value::Table(selection_table));
+
+    let mut compare_table = cloned_table(seed.get("compare"));
+    remove_keys(
+        &mut compare_table,
+        &["basis", "whitespace", "rewrite_urls", "canonicalization"],
+    );
+    compare_table.insert(
+        "basis".to_owned(),
+        toml_string(draft.compare_basis.as_str()),
+    );
+    compare_table.insert(
+        "rewrite_urls".to_owned(),
+        toml_boolean(draft.compare_rewrite_urls),
+    );
+    if draft.compare_basis == "text" {
+        compare_table.insert(
+            "whitespace".to_owned(),
+            toml_string(draft.compare_whitespace.as_deref().unwrap_or("normalize")),
+        );
+    }
+    compare_table.insert(
+        "canonicalization".to_owned(),
+        toml::Value::Array(
+            draft
+                .compare_canonicalizers
+                .iter()
+                .map(|canonicalizer| {
+                    let mut table = toml::Table::new();
+                    table.insert("kind".to_owned(), toml_string(canonicalizer.kind.as_str()));
+                    if let Some(pattern) = &canonicalizer.pattern {
+                        table.insert("pattern".to_owned(), toml_string(pattern.as_str()));
+                    }
+                    if !canonicalizer.flags.is_empty() {
+                        table.insert(
+                            "flags".to_owned(),
+                            toml::Value::Array(
+                                canonicalizer
+                                    .flags
+                                    .iter()
+                                    .map(|flag| toml_string(flag.as_str()))
+                                    .collect(),
+                            ),
+                        );
+                    }
+                    toml::Value::Table(table)
+                })
+                .collect(),
+        ),
+    );
+    seed.insert("compare".to_owned(), toml::Value::Table(compare_table));
+
+    let mut storage_table = cloned_table(seed.get("storage"));
+    remove_keys(&mut storage_table, &["history_limit"]);
+    storage_table.insert(
+        "history_limit".to_owned(),
+        toml_integer(draft.storage_history_limit as i64),
+    );
+    seed.insert("storage".to_owned(), toml::Value::Table(storage_table));
+
+    Ok(())
+}
+
+fn cloned_table(value: Option<&toml::Value>) -> toml::Table {
+    match value {
+        Some(toml::Value::Table(table)) => table.clone(),
+        _ => toml::Table::new(),
+    }
+}
+
+fn read_nested_string<'a>(value: Option<&'a toml::Value>, key: &str) -> Option<&'a str> {
+    match value {
+        Some(toml::Value::Table(table)) => table.get(key).and_then(toml::Value::as_str),
+        _ => None,
+    }
+}
+
+fn remove_keys(table: &mut toml::Table, keys: &[&str]) {
+    for key in keys {
+        table.remove(*key);
+    }
+}
+
+fn toml_string(value: &str) -> toml::Value {
+    toml::Value::String(value.to_owned())
+}
+
+fn toml_integer(value: i64) -> toml::Value {
+    toml::Value::Integer(value)
+}
+
+fn toml_boolean(value: bool) -> toml::Value {
+    toml::Value::Boolean(value)
+}
+
+fn http_method_token(method: HttpMethod) -> String {
+    match method {
+        HttpMethod::GET => "GET".to_owned(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn selection_kind_token(kind: SelectionKind) -> &'static str {
+    match kind {
+        SelectionKind::CssSelector => "css_selector",
+        SelectionKind::DelimiterPair => "delimiter_pair",
+        _ => "css_selector",
+    }
+}
+
+fn selection_match_token(selection_match: SelectionMatch) -> &'static str {
+    match selection_match {
+        SelectionMatch::Single => "single",
+        SelectionMatch::First => "first",
+        SelectionMatch::Nth => "nth",
+        _ => "single",
+    }
+}
+
+fn delimiter_mode_token(mode: DelimiterMode) -> &'static str {
+    match mode {
+        DelimiterMode::Literal => "literal",
+        DelimiterMode::Regex => "regex",
+        _ => "literal",
+    }
+}
+
+fn regex_flag_token(flag: &RegexFlag) -> &'static str {
+    match flag {
+        RegexFlag::CaseInsensitive => "case_insensitive",
+        RegexFlag::MultiLine => "multi_line",
+        RegexFlag::DotMatchesNewLine => "dot_matches_new_line",
+        RegexFlag::SwapGreed => "swap_greed",
+        RegexFlag::IgnoreWhitespace => "ignore_whitespace",
+        _ => "case_insensitive",
+    }
+}
+
+fn compare_basis_token(basis: CompareBasis) -> &'static str {
+    match basis {
+        CompareBasis::Text => "text",
+        CompareBasis::InnerHtml => "inner_html",
+        CompareBasis::OuterHtml => "outer_html",
+        _ => "text",
+    }
+}
+
+fn whitespace_mode_token(mode: WhitespaceMode) -> &'static str {
+    match mode {
+        WhitespaceMode::Preserve => "preserve",
+        WhitespaceMode::Normalize => "normalize",
+        _ => "normalize",
+    }
 }
 
 fn materialize_target_document(
@@ -469,12 +962,13 @@ mod tests {
         let workspace = tempdir().expect("tempdir");
         let request = TargetSaveRequest {
             previous_directory_name: None,
-            raw_toml: file_target_toml(
+            draft_session: None,
+            raw_toml: Some(file_target_toml(
                 "release_notes",
                 "Demo release notes",
                 &workspace.path().join("source.html"),
                 ".release",
-            ),
+            )),
         };
 
         let directory_name =
@@ -489,23 +983,25 @@ mod tests {
         let workspace = tempdir().expect("tempdir");
         let old_request = TargetSaveRequest {
             previous_directory_name: None,
-            raw_toml: file_target_toml(
+            draft_session: None,
+            raw_toml: Some(file_target_toml(
                 "old_target",
                 "Old target",
                 &workspace.path().join("old.html"),
                 ".old",
-            ),
+            )),
         };
         persist_target_document(workspace.path(), &old_request).expect("persist old target");
 
         let renamed_request = TargetSaveRequest {
             previous_directory_name: Some("old_target".to_owned()),
-            raw_toml: file_target_toml(
+            draft_session: None,
+            raw_toml: Some(file_target_toml(
                 "new_target",
                 "New target",
                 &workspace.path().join("new.html"),
                 ".new",
-            ),
+            )),
         };
 
         let directory_name =
@@ -523,12 +1019,13 @@ mod tests {
             workspace.path(),
             &TargetSaveRequest {
                 previous_directory_name: None,
-                raw_toml: file_target_toml(
+                draft_session: None,
+                raw_toml: Some(file_target_toml(
                     "old_target",
                     "Old target",
                     &workspace.path().join("old.html"),
                     ".old",
-                ),
+                )),
             },
         )
         .expect("persist old target");
@@ -536,12 +1033,13 @@ mod tests {
             workspace.path(),
             &TargetSaveRequest {
                 previous_directory_name: None,
-                raw_toml: file_target_toml(
+                draft_session: None,
+                raw_toml: Some(file_target_toml(
                     "taken_target",
                     "Taken target",
                     &workspace.path().join("taken.html"),
                     ".taken",
-                ),
+                )),
             },
         )
         .expect("persist taken target");
@@ -550,12 +1048,13 @@ mod tests {
             workspace.path(),
             &TargetSaveRequest {
                 previous_directory_name: Some("old_target".to_owned()),
-                raw_toml: file_target_toml(
+                draft_session: None,
+                raw_toml: Some(file_target_toml(
                     "taken_target",
                     "Taken target",
                     &workspace.path().join("taken.html"),
                     ".taken",
-                ),
+                )),
             },
         )
         .expect_err("rename should fail");
@@ -569,16 +1068,20 @@ mod tests {
         ignore = "Miri does not support the nonblocking socket path used by HTTP previews."
     )]
     fn preview_target_supports_http_targets_against_a_local_fixture_server() {
-        let (url, handle) = start_http_fixture_server(
+        let (url, handle) = start_http_corpus_server([(
+            "/",
             r#"<!doctype html><html><body><main>Preview me</main></body></html>"#,
-        );
+        )]);
 
-        let preview = preview_target_logic(http_target_toml(
-            "website_watch",
-            "Website watch",
-            &url,
-            "main",
-        ))
+        let preview = preview_target_logic(TargetPreviewRequest {
+            draft_session: None,
+            raw_toml: Some(http_target_toml(
+                "website_watch",
+                "Website watch",
+                &url,
+                "main",
+            )),
+        })
         .expect("preview target");
 
         handle.join().expect("join http fixture server");
@@ -593,6 +1096,47 @@ mod tests {
             preview.dry_run_report["schema_name"],
             serde_json::Value::String("ffhn.run_report".to_owned())
         );
+        assert_eq!(
+            preview
+                .preview_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.compare_text.as_str()),
+            Some("Preview me")
+        );
+    }
+
+    #[test]
+    fn preview_target_materializes_a_snapshot_for_guided_file_targets() {
+        let workspace = tempdir().expect("tempdir");
+        let source = workspace.path().join("guided-preview.html");
+        fs::write(
+            &source,
+            "<main><article class=\"release\">Guided preview payload</article></main>",
+        )
+        .expect("write source html");
+
+        let mut session = get_target_template_logic("file".to_owned())
+            .expect("file template")
+            .draft_session;
+        session.draft.target_id = "guided_preview".to_owned();
+        session.draft.display_name = "Guided preview".to_owned();
+        session.draft.source_locator = source.display().to_string();
+        session.draft.selection_selector = Some(".release".to_owned());
+
+        let preview = preview_target_logic(TargetPreviewRequest {
+            draft_session: Some(session),
+            raw_toml: None,
+        })
+        .expect("preview target");
+
+        assert_eq!(
+            preview
+                .preview_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.compare_text.as_str()),
+            Some("Guided preview payload")
+        );
+        assert!(preview.preview_artifact_issues.is_empty());
     }
 
     #[test]
@@ -606,12 +1150,15 @@ mod tests {
             r#"<!doctype html><html><body><main><article class="status-card">OK</article></main></body></html>"#,
         )]);
 
-        let preview = preview_target_logic(http_target_toml(
-            "website_watch",
-            "Website watch",
-            &format!("{base_url}status"),
-            ".missing-fragment",
-        ))
+        let preview = preview_target_logic(TargetPreviewRequest {
+            draft_session: None,
+            raw_toml: Some(http_target_toml(
+                "website_watch",
+                "Website watch",
+                &format!("{base_url}status"),
+                ".missing-fragment",
+            )),
+        })
         .expect("preview target");
 
         handle.join().expect("join http corpus server");
@@ -643,7 +1190,13 @@ mod tests {
             workspace.path(),
             &TargetSaveRequest {
                 previous_directory_name: None,
-                raw_toml: file_target_toml("release_notes", "Release notes", &source, ".release"),
+                draft_session: None,
+                raw_toml: Some(file_target_toml(
+                    "release_notes",
+                    "Release notes",
+                    &source,
+                    ".release",
+                )),
             },
         )
         .expect("persist target");
@@ -701,7 +1254,13 @@ mod tests {
                 workspace.path(),
                 &TargetSaveRequest {
                     previous_directory_name: None,
-                    raw_toml: file_target_toml(directory_name, directory_name, &source, selector),
+                    draft_session: None,
+                    raw_toml: Some(file_target_toml(
+                        directory_name,
+                        directory_name,
+                        &source,
+                        selector,
+                    )),
                 },
             )
             .expect("persist target");
@@ -727,6 +1286,56 @@ mod tests {
                 .join("status_board/last_run.json")
                 .is_file()
         );
+    }
+
+    #[test]
+    fn execute_workspace_run_skips_invalid_directory_ids_and_keeps_valid_targets() {
+        let workspace = tempdir().expect("tempdir");
+        let source = workspace.path().join("release.html");
+        fs::write(
+            &source,
+            "<main><article class=\"release\">Release 7.0.0</article></main>",
+        )
+        .expect("write source html");
+        persist_target_document(
+            workspace.path(),
+            &TargetSaveRequest {
+                previous_directory_name: None,
+                draft_session: None,
+                raw_toml: Some(file_target_toml(
+                    "release_notes",
+                    "Release notes",
+                    &source,
+                    ".release",
+                )),
+            },
+        )
+        .expect("persist target");
+
+        let invalid_directory = workspace.path().join("Bad-Target");
+        fs::create_dir_all(&invalid_directory).expect("create invalid directory");
+        fs::write(
+            invalid_directory.join("target.toml"),
+            file_target_toml("bad_target", "Bad target", &source, ".release"),
+        )
+        .expect("write invalid directory target");
+
+        let (batch_report, skipped_directories) =
+            execute_workspace_run(workspace.path(), Some(1)).expect("run workspace");
+
+        let entries = batch_report["entries"]
+            .as_array()
+            .expect("batch report entries");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(skipped_directories.len(), 1);
+        assert_eq!(skipped_directories[0].directory_name, "Bad-Target");
+        assert!(
+            workspace
+                .path()
+                .join("release_notes/last_run.json")
+                .is_file()
+        );
+        assert!(!invalid_directory.join("last_run.json").is_file());
     }
 
     #[test]
@@ -760,12 +1369,13 @@ mod tests {
                 workspace.path(),
                 &TargetSaveRequest {
                     previous_directory_name: None,
-                    raw_toml: http_target_toml(
+                    draft_session: None,
+                    raw_toml: Some(http_target_toml(
                         directory_name,
                         display_name,
                         &format!("{base_url}{path}"),
                         selector,
-                    ),
+                    )),
                 },
             )
             .expect("persist http target");
@@ -910,26 +1520,6 @@ rewrite_urls = false
 kind = "trim"
 "#
         )
-    }
-
-    fn start_http_fixture_server(body: &str) -> (String, std::thread::JoinHandle<()>) {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind local fixture server");
-        let address = listener.local_addr().expect("fixture server address");
-        let response_body = body.to_owned();
-        let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("accept fixture request");
-            let mut request_buffer = [0_u8; 2048];
-            let _ = stream.read(&mut request_buffer);
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                response_body.len(),
-                response_body
-            );
-            stream
-                .write_all(response.as_bytes())
-                .expect("write fixture response");
-        });
-        (format!("http://{address}/"), handle)
     }
 
     fn start_http_corpus_server<const N: usize>(

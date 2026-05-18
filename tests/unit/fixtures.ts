@@ -4,6 +4,7 @@ import type {
   NotificationRecord,
   SnapshotArtifactRecord,
   TargetArtifactHistory,
+  TargetDraftSession,
   TargetDocumentRecord,
   TargetSummary,
   WorkspaceSnapshot,
@@ -12,7 +13,7 @@ import type {
 type DashboardState = ReturnType<typeof useDashboardState>;
 
 export function makeTarget(overrides: Partial<TargetSummary> = {}): TargetSummary {
-  return {
+  const target = {
     directoryName: 'demo_status_board',
     targetDirectoryPath: '/tmp/dataarm/demo-watch-root/demo_status_board',
     targetId: 'status_board',
@@ -29,6 +30,11 @@ export function makeTarget(overrides: Partial<TargetSummary> = {}): TargetSummar
     lastRunAt: '2026-05-15T11:30:00Z',
     errorMessage: null,
     ...overrides,
+  };
+
+  return {
+    ...target,
+    runnableTargetId: overrides.runnableTargetId ?? target.targetId,
   };
 }
 
@@ -106,12 +112,45 @@ export function makeArtifactHistory(
 }
 
 export function makeDocument(overrides: Partial<TargetDocumentRecord> = {}): TargetDocumentRecord {
+  const guidedSession: TargetDraftSession = {
+    draft: {
+      kind: 'file',
+      targetId: 'status_board',
+      displayName: 'Demo status board',
+      enabled: true,
+      sourceLocator: '/tmp/dataarm/demo-watch-root/sources/status-board.html',
+      fetchMethod: null,
+      fetchTimeoutMs: null,
+      fetchMaxBytes: 2000000,
+      fetchUserAgent: null,
+      fetchFollowRedirects: null,
+      fetchAccept: null,
+      selectionKind: 'css_selector',
+      selectionMatch: 'single',
+      selectionIndex: null,
+      selectionSelector: '.status-card',
+      selectionStart: null,
+      selectionEnd: null,
+      selectionDelimiterMode: null,
+      selectionIncludeStart: null,
+      selectionIncludeEnd: null,
+      selectionRegexFlags: [],
+      compareBasis: 'text',
+      compareWhitespace: 'normalize',
+      compareRewriteUrls: false,
+      compareCanonicalizers: [{ kind: 'trim', pattern: null, flags: [] }],
+      storageHistoryLimit: 20,
+    },
+    contractSeed: {},
+  };
+
   return {
     directoryName: 'demo_status_board',
     targetDirectoryPath: '/tmp/dataarm/demo-watch-root/demo_status_board',
     targetFilePath: '/tmp/dataarm/demo-watch-root/demo_status_board/target.toml',
     rawToml: 'schema_name = "ffhn.target"\ntarget_id = "status_board"\n',
     canonicalToml: 'schema_name = "ffhn.target"\ntarget_id = "status_board"\n',
+    guidedSession,
     targetId: 'status_board',
     displayName: 'Demo status board',
     enabled: true,
@@ -163,10 +202,15 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     recentWorkspaces: workspace.recentWorkspaces,
     notificationCenter: workspace.notificationCenter,
     document: { loading: false, error: null, data: document },
+    draftSession: document.guidedSession,
+    guidedDraft: document.guidedSession.draft,
+    repairMode: false,
     draftToml: document.rawToml,
     dirty: false,
     editorMode: 'existing',
     preview: { loading: false, error: null, data: null },
+    previewSnapshot: null,
+    previewArtifactIssues: [],
     lastRun: { loading: false, error: null, data: null },
     lastBatch: { loading: false, error: null, data: null },
     actionFeedback: null,
@@ -189,6 +233,14 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
       attention: 0,
     },
     setDraftToml: () => {},
+    setDraftField: () => {},
+    setDraftKind: () => {},
+    setSelectionKind: () => {},
+    setSelectionMatch: () => {},
+    updateGuidedDraft: () => {},
+    addCanonicalizer: () => {},
+    updateCanonicalizer: () => {},
+    removeCanonicalizer: () => {},
     setActionFeedback: () => {},
     handleSelectTarget: async () => {},
     handleStartNewTarget: async () => {},

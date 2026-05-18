@@ -6,8 +6,8 @@ import {
   deleteTarget,
   getTargetTemplate,
   openTargetPath,
-  openWorkspacePath,
   openWorkspace,
+  openWorkspacePath,
   previewTarget,
   readTarget,
   refreshWorkspace,
@@ -23,6 +23,9 @@ import type {
   NotificationRecord,
   NotificationSettings,
   TargetDocumentRecord,
+  TargetDraft,
+  TargetDraftCanonicalizer,
+  TargetDraftSession,
   TargetPreview,
   TargetRunResult,
   TargetTemplateKind,
@@ -60,6 +63,76 @@ function readRunOutcome(value: unknown) {
   return typeof result?.outcome === 'string' ? result.outcome : null;
 }
 
+function cloneDraftSession(session: TargetDraftSession | null) {
+  return session == null ? null : (JSON.parse(JSON.stringify(session)) as TargetDraftSession);
+}
+
+function editorSignature(session: TargetDraftSession | null, toml: string) {
+  return session == null ? toml : JSON.stringify(session);
+}
+
+function normalizeDraftForKind(draft: TargetDraft, kind: TargetTemplateKind): TargetDraft {
+  if (kind === 'http') {
+    return {
+      ...draft,
+      kind,
+      sourceLocator:
+        draft.sourceLocator.startsWith('http://') || draft.sourceLocator.startsWith('https://')
+          ? draft.sourceLocator
+          : 'https://example.com',
+      fetchMethod: 'GET',
+      fetchTimeoutMs: draft.fetchTimeoutMs ?? 15000,
+      fetchUserAgent: draft.fetchUserAgent ?? 'dataarm/template',
+      fetchFollowRedirects: draft.fetchFollowRedirects ?? true,
+      fetchAccept: draft.fetchAccept ?? 'text/html,application/xhtml+xml',
+    };
+  }
+
+  return {
+    ...draft,
+    kind,
+    sourceLocator: draft.sourceLocator.startsWith('/')
+      ? draft.sourceLocator
+      : '/absolute/path/to/page.html',
+    fetchMethod: null,
+    fetchTimeoutMs: null,
+    fetchUserAgent: null,
+    fetchFollowRedirects: null,
+    fetchAccept: null,
+  };
+}
+
+function normalizeDraftForSelectionKind(
+  draft: TargetDraft,
+  selectionKind: TargetDraft['selectionKind'],
+): TargetDraft {
+  if (selectionKind === 'css_selector') {
+    return {
+      ...draft,
+      selectionKind,
+      selectionSelector: draft.selectionSelector ?? 'main',
+      selectionStart: null,
+      selectionEnd: null,
+      selectionDelimiterMode: null,
+      selectionIncludeStart: null,
+      selectionIncludeEnd: null,
+      selectionRegexFlags: [],
+    };
+  }
+
+  return {
+    ...draft,
+    selectionKind,
+    selectionSelector: null,
+    selectionStart: draft.selectionStart ?? '<main>',
+    selectionEnd: draft.selectionEnd ?? '</main>',
+    selectionDelimiterMode: draft.selectionDelimiterMode ?? 'literal',
+    selectionIncludeStart: draft.selectionIncludeStart ?? false,
+    selectionIncludeEnd: draft.selectionIncludeEnd ?? false,
+    selectionRegexFlags: draft.selectionRegexFlags,
+  };
+}
+
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -72,7 +145,12 @@ export function useDashboardState() {
   const [lastBatch, setLastBatch] = useAsyncState<BatchRunResult>(false);
   const [workspaceInput, setWorkspaceInput] = useState('');
   const [selectedDirectoryName, setSelectedDirectoryName] = useState<string | null>(null);
+  const [draftSession, setDraftSession] = useState<TargetDraftSession | null>(null);
+  const [editorBaselineSession, setEditorBaselineSession] = useState<TargetDraftSession | null>(
+    null,
+  );
   const [draftToml, setDraftToml] = useState('');
+  const [editorBaselineToml, setEditorBaselineToml] = useState('');
   const [dirty, setDirty] = useState(false);
   const [editorMode, setEditorMode] = useState<'existing' | TargetTemplateKind>('existing');
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
@@ -97,9 +175,7 @@ export function useDashboardState() {
         : (targets.find((target) => target.directoryName === selectedDirectoryName) ?? null),
     [isDraftContext, selectedDirectoryName, targets],
   );
-
   const workspaceSummary = workspace.data?.summary ?? null;
-  const baselineToml = document.data?.canonicalToml ?? document.data?.rawToml ?? null;
   const loadingTarget = document.loading;
   const isBusy =
     loadingTarget ||
@@ -108,6 +184,10 @@ export function useDashboardState() {
     runningWorkspace ||
     preview.loading ||
     openingWorkspace;
+  const guidedDraft = draftSession?.draft ?? null;
+  const repairMode = draftSession == null;
+  const previewSnapshot = preview.data?.previewSnapshot ?? null;
+  const previewArtifactIssues = preview.data?.previewArtifactIssues ?? [];
 
   function beginDocumentLoad() {
     documentLoadSequence.current += 1;
@@ -122,15 +202,42 @@ export function useDashboardState() {
     documentLoadSequence.current += 1;
   }
 
+  function setFeedback(tone: ActionFeedback['tone'], message: string) {
+    setActionFeedback(createFeedback(tone, message));
+  }
+
+  function syncDirty(nextSession: TargetDraftSession | null, nextToml: string) {
+    setDirty(
+      editorSignature(nextSession, nextToml) !==
+        editorSignature(editorBaselineSession, editorBaselineToml),
+    );
+  }
+
   function clearInspector() {
     setPreview(initialState(false));
     setLastRun(initialState(false));
   }
 
+  function applyEditorState(
+    nextSession: TargetDraftSession | null,
+    nextToml: string,
+    options?: { clearInspector?: boolean },
+  ) {
+    setDraftSession(nextSession);
+    setDraftToml(nextToml);
+    syncDirty(nextSession, nextToml);
+    if (options?.clearInspector ?? true) {
+      clearInspector();
+    }
+  }
+
   function clearEditor() {
     cancelDocumentLoad();
     setDocument(initialState(false));
+    setDraftSession(null);
+    setEditorBaselineSession(null);
     setDraftToml('');
+    setEditorBaselineToml('');
     setDirty(false);
     setEditorMode('existing');
     setDetailTab('changes');
@@ -138,8 +245,12 @@ export function useDashboardState() {
     clearInspector();
   }
 
-  function setFeedback(tone: ActionFeedback['tone'], message: string) {
-    setActionFeedback(createFeedback(tone, message));
+  function primeEditorBaseline(nextSession: TargetDraftSession | null, nextToml: string) {
+    setEditorBaselineSession(cloneDraftSession(nextSession));
+    setEditorBaselineToml(nextToml);
+    setDraftSession(cloneDraftSession(nextSession));
+    setDraftToml(nextToml);
+    setDirty(false);
   }
 
   function confirmDiscardDraft() {
@@ -154,9 +265,75 @@ export function useDashboardState() {
     );
   }
 
-  function updateDraft(nextToml: string) {
+  function updateRepairToml(nextToml: string) {
     setDraftToml(nextToml);
-    setDirty(baselineToml == null ? true : nextToml !== baselineToml);
+    syncDirty(draftSession, nextToml);
+    clearInspector();
+  }
+
+  function updateGuidedDraft(updater: (draft: TargetDraft) => TargetDraft) {
+    if (!draftSession) {
+      return;
+    }
+    const nextSession = {
+      ...draftSession,
+      draft: updater(draftSession.draft),
+    };
+    applyEditorState(nextSession, draftToml);
+  }
+
+  function setDraftField<K extends keyof TargetDraft>(field: K, value: TargetDraft[K]) {
+    updateGuidedDraft((draft) => ({
+      ...draft,
+      [field]: value,
+    }));
+  }
+
+  function setDraftKind(kind: TargetTemplateKind) {
+    updateGuidedDraft((draft) => normalizeDraftForKind(draft, kind));
+  }
+
+  function setSelectionKind(kind: TargetDraft['selectionKind']) {
+    updateGuidedDraft((draft) => normalizeDraftForSelectionKind(draft, kind));
+  }
+
+  function setSelectionMatch(match: TargetDraft['selectionMatch']) {
+    updateGuidedDraft((draft) => ({
+      ...draft,
+      selectionMatch: match,
+      selectionIndex: match === 'nth' ? (draft.selectionIndex ?? 1) : null,
+    }));
+  }
+
+  function addCanonicalizer() {
+    updateGuidedDraft((draft) => ({
+      ...draft,
+      compareCanonicalizers: [
+        ...draft.compareCanonicalizers,
+        { kind: 'trim', pattern: null, flags: [] },
+      ],
+    }));
+  }
+
+  function updateCanonicalizer(
+    index: number,
+    updater: (canonicalizer: TargetDraftCanonicalizer) => TargetDraftCanonicalizer,
+  ) {
+    updateGuidedDraft((draft) => ({
+      ...draft,
+      compareCanonicalizers: draft.compareCanonicalizers.map((canonicalizer, currentIndex) =>
+        currentIndex === index ? updater(canonicalizer) : canonicalizer,
+      ),
+    }));
+  }
+
+  function removeCanonicalizer(index: number) {
+    updateGuidedDraft((draft) => ({
+      ...draft,
+      compareCanonicalizers: draft.compareCanonicalizers.filter(
+        (_, currentIndex) => currentIndex !== index,
+      ),
+    }));
   }
 
   function applyWorkspaceSnapshot(
@@ -172,13 +349,13 @@ export function useDashboardState() {
       null;
 
     setSelectedDirectoryName(nextDirectoryName);
-
     return nextDirectoryName;
   }
 
   async function loadTargetDocument(directoryName: string) {
     const loadId = beginDocumentLoad();
     setDocument(initialState());
+    setDraftSession(null);
     setDraftToml('');
     setDirty(false);
     setEditorMode('existing');
@@ -192,8 +369,7 @@ export function useDashboardState() {
         return;
       }
       setDocument({ loading: false, error: null, data: record });
-      setDraftToml(record.canonicalToml ?? record.rawToml);
-      setDirty(false);
+      primeEditorBaseline(record.guidedSession, record.canonicalToml ?? record.rawToml);
       setEditorMode('existing');
     } catch (error) {
       if (!isCurrentDocumentLoad(loadId)) {
@@ -269,6 +445,7 @@ export function useDashboardState() {
     setSelectedDirectoryName(null);
     setEditorMode(kind);
     setDocument(initialState());
+    setDraftSession(null);
     setDraftToml('');
     setDirty(false);
     setDetailTab('config');
@@ -281,8 +458,7 @@ export function useDashboardState() {
         return;
       }
       setDocument({ loading: false, error: null, data: null });
-      setDraftToml(template.rawToml);
-      setDirty(false);
+      primeEditorBaseline(template.draftSession, template.canonicalToml);
       setEditorMode(kind);
       setActionFeedback(createFeedback('info', `Loaded the ${kind} target template.`));
     } catch (error) {
@@ -310,7 +486,8 @@ export function useDashboardState() {
     if (loadingTarget) {
       return;
     }
-    if (!draftToml.trim()) {
+
+    if (draftSession == null && !draftToml.trim()) {
       setFeedback('warning', 'The target document is empty.');
       return;
     }
@@ -318,18 +495,21 @@ export function useDashboardState() {
     setPreview(initialState());
 
     try {
-      const nextPreview = await previewTarget(draftToml);
+      const nextPreview = await previewTarget(
+        draftSession ? { draftSession } : { rawToml: draftToml },
+      );
       setPreview({ loading: false, error: null, data: nextPreview });
-      setDraftToml(nextPreview.canonicalToml);
-      setDirty(baselineToml == null ? true : nextPreview.canonicalToml !== baselineToml);
+      applyEditorState(nextPreview.draftSession, nextPreview.canonicalToml, {
+        clearInspector: false,
+      });
       setArtifactTab('preview');
-      setDetailTab(editorMode === 'existing' ? 'artifacts' : 'changes');
-      setFeedback('success', 'Dry-run preview refreshed from ffhn-core.');
+      setDetailTab('changes');
+      setFeedback('success', 'Preview refreshed from canonical FFHN runtime artifacts.');
     } catch (error) {
       const message = errorMessage(error);
       setPreview({ loading: false, error: message, data: null });
       setArtifactTab('preview');
-      setDetailTab(editorMode === 'existing' ? 'artifacts' : 'changes');
+      setDetailTab('changes');
       setFeedback('error', message);
     }
   }
@@ -346,10 +526,17 @@ export function useDashboardState() {
     setSaving(true);
 
     try {
-      const result = await saveTarget({
-        previousDirectoryName: selectedDirectoryName,
-        rawToml: draftToml,
-      });
+      const result = await saveTarget(
+        draftSession
+          ? {
+              previousDirectoryName: selectedDirectoryName,
+              draftSession,
+            }
+          : {
+              previousDirectoryName: selectedDirectoryName,
+              rawToml: draftToml,
+            },
+      );
       await hydrateWorkspaceSnapshot(result.workspace, result.directoryName);
       setDirty(false);
       setFeedback('success', 'Target saved. Baseline artifacts were reset for a clean next run.');
@@ -572,20 +759,14 @@ export function useDashboardState() {
     if (loadingTarget) {
       return;
     }
-    if (baselineToml) {
-      setDraftToml(baselineToml);
-      setDirty(false);
-      clearInspector();
-      return;
-    }
-
-    void loadNewTargetTemplate(editorMode === 'existing' ? 'http' : editorMode);
+    applyEditorState(cloneDraftSession(editorBaselineSession), editorBaselineToml);
+    setDirty(false);
   }
 
   const stats = useMemo(
     () => ({
       total: targets.length,
-      runnable: targets.filter((target) => target.targetId != null).length,
+      runnable: targets.filter((target) => target.runnableTargetId != null).length,
       ready: targets.filter((target) => target.statusKind === 'ready').length,
       changed: targets.filter(
         (target) => target.statusKind === 'changed' || target.lastRunOutcome === 'changed',
@@ -623,10 +804,15 @@ export function useDashboardState() {
     recentWorkspaces,
     notificationCenter,
     document,
+    draftSession,
+    guidedDraft,
+    repairMode,
     draftToml,
     dirty,
     editorMode,
     preview,
+    previewSnapshot,
+    previewArtifactIssues,
     lastRun,
     lastBatch,
     actionFeedback,
@@ -641,7 +827,15 @@ export function useDashboardState() {
     artifactTab,
     setArtifactTab,
     stats,
-    setDraftToml: updateDraft,
+    setDraftToml: updateRepairToml,
+    setDraftField,
+    setDraftKind,
+    setSelectionKind,
+    setSelectionMatch,
+    updateGuidedDraft,
+    addCanonicalizer,
+    updateCanonicalizer,
+    removeCanonicalizer,
     setActionFeedback,
     handleSelectTarget,
     handleStartNewTarget,

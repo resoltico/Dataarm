@@ -51,8 +51,8 @@ pub(crate) fn get_target_template(kind: String) -> Result<TargetTemplate, String
 }
 
 #[tauri::command]
-pub(crate) async fn preview_target(raw_toml: String) -> Result<TargetPreview, String> {
-    tauri::async_runtime::spawn_blocking(move || preview_target_logic(raw_toml))
+pub(crate) async fn preview_target(request: TargetPreviewRequest) -> Result<TargetPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || preview_target_logic(request))
         .await
         .map_err(|error| format!("Preview task failed: {error}"))?
 }

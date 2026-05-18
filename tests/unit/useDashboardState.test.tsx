@@ -5,9 +5,11 @@ import type {
   BatchRunResult,
   DesktopBootstrap,
   NotificationSettings,
+  TargetDraftSession,
   TargetDocumentRecord,
   TargetMutationResult,
   TargetPreview,
+  TargetPreviewRequest,
   TargetRunResult,
   TargetTemplate,
   TargetTemplateKind,
@@ -30,7 +32,7 @@ const api = vi.hoisted(() => ({
   openTargetPath: vi.fn<(directoryName: string) => Promise<void>>(),
   openWorkspacePath: vi.fn<() => Promise<void>>(),
   openWorkspace: vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>(),
-  previewTarget: vi.fn<(rawToml: string) => Promise<TargetPreview>>(),
+  previewTarget: vi.fn<(request: TargetPreviewRequest) => Promise<TargetPreview>>(),
   readTarget: vi.fn<(directoryName: string) => Promise<TargetDocumentRecord>>(),
   refreshWorkspace: vi.fn<() => Promise<WorkspaceSnapshot>>(),
   runTarget: vi.fn<(directoryName: string) => Promise<TargetRunResult>>(),
@@ -39,7 +41,8 @@ const api = vi.hoisted(() => ({
     vi.fn<
       (request: {
         previousDirectoryName?: string | null;
-        rawToml: string;
+        draftSession?: TargetDraftSession | null;
+        rawToml?: string | null;
       }) => Promise<TargetMutationResult>
     >(),
   updateNotificationSettings:
@@ -70,6 +73,70 @@ function targetToml(
   extras = '[target]\nkind = "file"\nfile_path = "/tmp/dataarm/demo.html"\n',
 ) {
   return `schema_name = "ffhn.target"\ntarget_id = "${targetId}"\ndisplay_name = "${displayName}"\n${extras}`;
+}
+
+function makeDraftSession(
+  kind: TargetTemplateKind,
+  targetId: string,
+  displayName: string,
+  sourceLocator: string,
+): TargetDraftSession {
+  const document = makeDocument();
+  if (!document.guidedSession) {
+    throw new Error('Expected fixture document to include a guided session.');
+  }
+  const base = document.guidedSession;
+  return {
+    contractSeed: {},
+    draft: {
+      ...base.draft,
+      kind,
+      targetId,
+      displayName,
+      sourceLocator,
+      fetchMethod: kind === 'http' ? 'GET' : null,
+      fetchTimeoutMs: kind === 'http' ? 15000 : null,
+      fetchUserAgent: kind === 'http' ? 'dataarm/template' : null,
+      fetchFollowRedirects: kind === 'http' ? true : null,
+      fetchAccept: kind === 'http' ? 'text/html,application/xhtml+xml' : null,
+    },
+  };
+}
+
+function makeTemplate(
+  kind: TargetTemplateKind,
+  targetId: string,
+  displayName: string,
+  sourceLocator: string,
+): TargetTemplate {
+  return {
+    kind,
+    draftSession: makeDraftSession(kind, targetId, displayName, sourceLocator),
+    canonicalToml: targetToml(
+      targetId,
+      displayName,
+      kind === 'http'
+        ? `[target]\nkind = "http"\nsource_url = "${sourceLocator}"\n`
+        : `[target]\nkind = "file"\nfile_path = "${sourceLocator}"\n`,
+    ),
+  };
+}
+
+function makePreview(
+  targetId: string,
+  displayName: string,
+  draftSession: TargetDraftSession,
+): TargetPreview {
+  return {
+    targetId,
+    displayName,
+    canonicalToml: `${targetToml(targetId, displayName).trim()}\n`,
+    draftSession,
+    statusReport: { schema_name: 'ffhn.status_report' },
+    dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'initialized' } },
+    previewSnapshot: null,
+    previewArtifactIssues: [],
+  };
 }
 
 function makeWorkspace(
@@ -112,7 +179,7 @@ function makeWorkspace(
       workspacePath: '/tmp/dataarm/demo-watch-root',
       workspaceSource: 'demo',
       targetCount: targets.length,
-      runnableTargetCount: targets.filter((target) => target.targetId != null).length,
+      runnableTargetCount: targets.filter((target) => target.runnableTargetId != null).length,
       issueCount: targets.filter((target) => target.errorMessage != null).length,
       lastRunCount: targets.filter((target) => target.lastRunAt != null).length,
     },
@@ -142,6 +209,7 @@ function makeDocumentMap() {
         displayName: 'Alpha',
         rawToml: targetToml('alpha', 'Alpha'),
         canonicalToml: targetToml('alpha', 'Alpha'),
+        guidedSession: makeDraftSession('file', 'alpha', 'Alpha', '/tmp/dataarm/demo.html'),
       }),
     ],
     [
@@ -152,6 +220,7 @@ function makeDocumentMap() {
         displayName: 'Bravo',
         rawToml: targetToml('bravo', 'Bravo'),
         canonicalToml: targetToml('bravo', 'Bravo'),
+        guidedSession: makeDraftSession('file', 'bravo', 'Bravo', '/tmp/dataarm/demo.html'),
       }),
     ],
     [
@@ -162,6 +231,7 @@ function makeDocumentMap() {
         displayName: 'Charlie',
         rawToml: targetToml('charlie', 'Charlie'),
         canonicalToml: targetToml('charlie', 'Charlie'),
+        guidedSession: makeDraftSession('file', 'charlie', 'Charlie', '/tmp/dataarm/demo.html'),
       }),
     ],
   ]);
@@ -180,25 +250,19 @@ function configureApi(workspace = makeWorkspace()) {
     return Promise.resolve(document);
   });
   api.getTargetTemplate.mockImplementation((kind) =>
-    Promise.resolve({
-      kind,
-      rawToml:
-        kind === 'http'
-          ? targetToml(
-              'website_watch',
-              'Website watch',
-              '[target]\nkind = "http"\nsource_url = "https://example.com"\n',
-            )
-          : targetToml('file_watch', 'File watch'),
-    }),
+    Promise.resolve(
+      kind === 'http'
+        ? makeTemplate('http', 'website_watch', 'Website watch', 'https://example.com')
+        : makeTemplate('file', 'file_watch', 'File watch', '/tmp/dataarm/demo.html'),
+    ),
   );
-  api.previewTarget.mockResolvedValue({
-    targetId: 'website_watch',
-    displayName: 'Website watch',
-    canonicalToml: `${targetToml('website_watch', 'Website watch').trim()}\n`,
-    statusReport: { schema_name: 'ffhn.status_report' },
-    dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'initialized' } },
-  });
+  api.previewTarget.mockResolvedValue(
+    makePreview(
+      'website_watch',
+      'Website watch',
+      makeDraftSession('http', 'website_watch', 'Website watch', 'https://example.com'),
+    ),
+  );
   api.saveTarget.mockResolvedValue({
     directoryName: 'saved-target',
     workspace: makeWorkspace([
@@ -355,14 +419,9 @@ describe('useDashboardState', () => {
     const staleTemplateLoad = deferred<TargetTemplate>();
     api.getTargetTemplate.mockReset();
     api.getTargetTemplate.mockImplementationOnce(() => staleTemplateLoad.promise);
-    api.getTargetTemplate.mockResolvedValueOnce({
-      kind: 'http',
-      rawToml: targetToml(
-        'replacement_http',
-        'Replacement HTTP',
-        '[target]\nkind = "http"\nsource_url = "https://example.com"\n',
-      ),
-    });
+    api.getTargetTemplate.mockResolvedValueOnce(
+      makeTemplate('http', 'replacement_http', 'Replacement HTTP', 'https://example.com'),
+    );
 
     act(() => {
       void result.current.handleStartNewTarget('file');
@@ -371,10 +430,9 @@ describe('useDashboardState', () => {
       await result.current.handleStartNewTarget('http');
     });
 
-    staleTemplateLoad.resolve({
-      kind: 'file',
-      rawToml: targetToml('stale_file', 'Stale file'),
-    });
+    staleTemplateLoad.resolve(
+      makeTemplate('file', 'stale_file', 'Stale file', '/tmp/dataarm/stale-file.html'),
+    );
     await waitFor(() => {
       expect(result.current.editorMode).toBe('http');
       expect(result.current.draftToml).toContain('replacement_http');
@@ -400,14 +458,9 @@ describe('useDashboardState', () => {
     const staleRejectedTemplate = deferred<TargetTemplate>();
     api.getTargetTemplate.mockReset();
     api.getTargetTemplate.mockImplementationOnce(() => staleRejectedTemplate.promise);
-    api.getTargetTemplate.mockResolvedValueOnce({
-      kind: 'http',
-      rawToml: targetToml(
-        'replacement_again',
-        'Replacement again',
-        '[target]\nkind = "http"\nsource_url = "https://example.com/again"\n',
-      ),
-    });
+    api.getTargetTemplate.mockResolvedValueOnce(
+      makeTemplate('http', 'replacement_again', 'Replacement again', 'https://example.com/again'),
+    );
 
     act(() => {
       void result.current.handleStartNewTarget('file');
@@ -433,7 +486,7 @@ describe('useDashboardState', () => {
     await waitForLoadedState(result);
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# changed`);
+      result.current.setDraftField('displayName', 'Alpha changed');
     });
     expect(result.current.dirty).toBe(true);
 
@@ -458,38 +511,34 @@ describe('useDashboardState', () => {
     });
 
     act(() => {
-      result.current.setDraftToml('   ');
+      result.current.setDraftField('targetId', 'draft_file');
+      result.current.setDraftField('displayName', 'Draft file');
+      result.current.setDraftField('sourceLocator', '/tmp/dataarm/draft-file.html');
     });
-    await act(async () => {
-      await result.current.handlePreview();
-    });
-    expect(result.current.actionFeedback).toMatchObject({
-      tone: 'warning',
-      message: 'The target document is empty.',
-    });
-
-    act(() => {
-      result.current.setDraftToml(targetToml('draft_file', 'Draft file'));
-    });
+    api.previewTarget.mockResolvedValueOnce(
+      makePreview(
+        'draft_file',
+        'Draft file',
+        makeDraftSession('file', 'draft_file', 'Draft file', '/tmp/dataarm/draft-file.html'),
+      ),
+    );
     await act(async () => {
       await result.current.handlePreview();
     });
 
     await waitFor(() => {
-      expect(result.current.preview.data?.displayName).toBe('Website watch');
+      expect(result.current.preview.data?.displayName).toBe('Draft file');
       expect(result.current.detailTab).toBe('changes');
       expect(result.current.artifactTab).toBe('preview');
       expect(result.current.dirty).toBe(true);
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Dry-run preview refreshed from ffhn-core.',
+        message: 'Preview refreshed from canonical FFHN runtime artifacts.',
       });
     });
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# more changes`);
-    });
-    act(() => {
+      result.current.setDraftField('displayName', 'Draft file renamed');
       result.current.handleResetDraft();
     });
 
@@ -497,10 +546,11 @@ describe('useDashboardState', () => {
       expect(api.getTargetTemplate).toHaveBeenCalledWith('file');
       expect(result.current.dirty).toBe(false);
       expect(result.current.editorMode).toBe('file');
+      expect(result.current.guidedDraft?.displayName).toBe('File watch');
     });
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# unsaved draft`);
+      result.current.setDraftField('displayName', 'Unsaved file draft');
     });
     confirm.mockReturnValue(false);
     await act(async () => {
@@ -559,16 +609,13 @@ describe('useDashboardState', () => {
     await waitForLoadedState(result);
 
     api.previewTarget.mockRejectedValueOnce(new Error('Preview exploded'));
-    act(() => {
-      result.current.setDraftToml('target_id = "preview_failure"');
-    });
     await act(async () => {
       await result.current.handlePreview();
     });
 
     await waitFor(() => {
       expect(result.current.preview.error).toBe('Preview exploded');
-      expect(result.current.detailTab).toBe('artifacts');
+      expect(result.current.detailTab).toBe('changes');
       expect(result.current.artifactTab).toBe('preview');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'error',
@@ -576,22 +623,22 @@ describe('useDashboardState', () => {
       });
     });
 
-    api.previewTarget.mockResolvedValueOnce({
-      targetId: 'alpha',
-      displayName: 'ALPHA',
-      canonicalToml: result.current.document.data?.canonicalToml ?? result.current.draftToml,
-      statusReport: { schema_name: 'ffhn.status_report' },
-      dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'unchanged' } },
-    });
+    api.previewTarget.mockResolvedValueOnce(
+      makePreview(
+        'alpha',
+        'Alpha',
+        makeDraftSession('file', 'alpha', 'Alpha', '/tmp/dataarm/demo.html'),
+      ),
+    );
     await act(async () => {
       await result.current.handlePreview();
     });
     await waitFor(() => {
       expect(result.current.dirty).toBe(false);
-      expect(result.current.detailTab).toBe('artifacts');
+      expect(result.current.detailTab).toBe('changes');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Dry-run preview refreshed from ffhn-core.',
+        message: 'Preview refreshed from canonical FFHN runtime artifacts.',
       });
     });
 
@@ -661,6 +708,12 @@ describe('useDashboardState', () => {
             displayName: 'Saved target',
             rawToml: targetToml('saved_target', 'Saved target'),
             canonicalToml: targetToml('saved_target', 'Saved target'),
+            guidedSession: makeDraftSession(
+              'file',
+              'saved_target',
+              'Saved target',
+              '/tmp/dataarm/demo.html',
+            ),
           }),
         );
       }
@@ -671,6 +724,12 @@ describe('useDashboardState', () => {
           displayName: directoryName.toUpperCase(),
           rawToml: targetToml(directoryName, directoryName.toUpperCase()),
           canonicalToml: targetToml(directoryName, directoryName.toUpperCase()),
+          guidedSession: makeDraftSession(
+            'file',
+            directoryName,
+            directoryName.toUpperCase(),
+            '/tmp/dataarm/demo.html',
+          ),
         }),
       );
     });
@@ -679,7 +738,8 @@ describe('useDashboardState', () => {
     await waitForLoadedState(result);
 
     act(() => {
-      result.current.setDraftToml(targetToml('saved_target', 'Saved target'));
+      result.current.setDraftField('targetId', 'saved-target');
+      result.current.setDraftField('displayName', 'Saved target');
     });
     await act(async () => {
       await result.current.handleSave();
@@ -750,6 +810,12 @@ describe('useDashboardState', () => {
         displayName: directoryName.toUpperCase(),
         rawToml: targetToml(directoryName, directoryName.toUpperCase()),
         canonicalToml: targetToml(directoryName, directoryName.toUpperCase()),
+        guidedSession: makeDraftSession(
+          'file',
+          directoryName,
+          directoryName.toUpperCase(),
+          '/tmp/dataarm/demo.html',
+        ),
       });
     });
 
@@ -834,7 +900,7 @@ describe('useDashboardState', () => {
     await waitForLoadedState(result);
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# dirty`);
+      result.current.setDraftField('displayName', 'Alpha dirty');
     });
     await act(async () => {
       await result.current.handleRunSelectedTarget();
@@ -959,7 +1025,7 @@ describe('useDashboardState', () => {
     });
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# dirty workspace`);
+      result.current.setDraftField('displayName', 'Alpha workspace dirty');
     });
     await act(async () => {
       await result.current.handleRunWorkspace();
@@ -1056,6 +1122,12 @@ describe('useDashboardState', () => {
           displayName: directoryName.toUpperCase(),
           rawToml: targetToml(directoryName, directoryName.toUpperCase()),
           canonicalToml: targetToml(directoryName, directoryName.toUpperCase()),
+          guidedSession: makeDraftSession(
+            'file',
+            directoryName,
+            directoryName.toUpperCase(),
+            '/tmp/dataarm/demo.html',
+          ),
         }),
       ),
     );
@@ -1099,13 +1171,13 @@ describe('useDashboardState', () => {
     await waitForLoadedState(result);
 
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# dirty open`);
+      result.current.setDraftField('displayName', 'Alpha dirty open');
     });
     confirm.mockReturnValue(false);
     await act(async () => {
       await result.current.handleOpenWorkspaceFromInput();
     });
-    expect(api.openWorkspace).not.toHaveBeenCalledWith(undefined);
+    expect(api.openWorkspace).not.toHaveBeenCalled();
 
     act(() => {
       result.current.handleResetDraft();
@@ -1154,7 +1226,7 @@ describe('useDashboardState', () => {
       expect(result.current.selectedDirectoryName).toBe('zeta');
     });
     act(() => {
-      result.current.setDraftToml(`${result.current.draftToml}\n# dirty create`);
+      result.current.setDraftField('displayName', 'Zeta dirty create');
     });
 
     confirm.mockReturnValue(false);
@@ -1234,18 +1306,18 @@ describe('useDashboardState', () => {
       message: 'Notification history cleared.',
     });
 
-    api.getTargetTemplate.mockResolvedValueOnce({
-      kind: 'http',
-      rawToml: targetToml(
+    api.getTargetTemplate.mockResolvedValueOnce(
+      makeTemplate(
+        'http',
         'empty_workspace_http',
         'Empty workspace http',
-        '[target]\nkind = "http"\nsource_url = "https://example.com/empty"\n',
+        'https://example.com/empty',
       ),
-    });
+    );
     expect(result.current.document.data).toBeNull();
     expect(result.current.selectedDirectoryName).toBeNull();
-    act(() => {
-      result.current.handleResetDraft();
+    await act(async () => {
+      await result.current.handleStartNewTarget('http');
     });
     await waitFor(() => {
       expect(api.getTargetTemplate).toHaveBeenCalledWith('http');

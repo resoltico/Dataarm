@@ -57,25 +57,24 @@ describe('App integration', () => {
 
     await screen.findByRole('heading', { level: 2, name: 'Demo status board' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New HTTP' }));
-    await screen.findByText('New HTTP target');
-    await screen.findByText('Loaded the http target template.');
+    fireEvent.click(screen.getByRole('button', { name: 'New file' }));
+    await screen.findByText('New file target');
+    await screen.findByText('Loaded the file target template.');
+
+    fireEvent.change(screen.getByLabelText('Target ID'), {
+      target: { value: 'release_digest' },
+    });
+    fireEvent.change(screen.getByLabelText('Display name'), {
+      target: { value: 'Release digest' },
+    });
+    fireEvent.change(screen.getByLabelText('File path'), {
+      target: { value: '/tmp/release-digest.html' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview target' }));
     await screen.findByText('Preview ready', { selector: 'strong' });
     fireEvent.click(screen.getByRole('button', { name: 'Config' }));
-
-    fireEvent.change(screen.getByLabelText('Target TOML editor'), {
-      target: {
-        value: [
-          'target_id = "release_digest"',
-          'display_name = "Release digest"',
-          '[target]',
-          'kind = "file"',
-          'file_path = "/tmp/release-digest.html"',
-        ].join('\n'),
-      },
-    });
+    await screen.findByRole('button', { name: 'Save target' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
     await screen.findByText('Target saved. Baseline artifacts were reset for a clean next run.');
@@ -114,15 +113,6 @@ describe('App integration', () => {
     await screen.findByText('New HTTP target');
     await screen.findByText('Loaded the http target template.');
 
-    fireEvent.change(screen.getByLabelText('Target TOML editor'), {
-      target: { value: '   ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview target' }));
-    await screen.findByText('The target document is empty.');
-
-    fireEvent.change(screen.getByLabelText('Target TOML editor'), {
-      target: { value: 'target_id = "preview_failure"' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Preview target' }));
     await screen.findAllByText('Preview exploded');
 
@@ -141,6 +131,7 @@ describe('App integration', () => {
     await screen.findByText('System delivery is not ready on this runtime.');
 
     fireEvent.click(screen.getByRole('button', { name: 'Config' }));
+    await screen.findByRole('button', { name: 'Delete target' });
     fireEvent.click(screen.getByRole('button', { name: 'Delete target' }));
     await screen.findByRole('heading', { level: 2, name: 'Demo release notes' });
 
@@ -182,7 +173,7 @@ describe('App integration', () => {
 
     await screen.findByRole('heading', { level: 2, name: 'Demo status board' });
     fireEvent.click(screen.getByRole('button', { name: 'Config' }));
-    await screen.findByLabelText('Target TOML editor');
+    await screen.findByLabelText('Canonical target TOML');
 
     const openFolderButtons = screen.getAllByRole('button', { name: 'Open folder' });
     const primaryOpenFolderButton = openFolderButtons[0];

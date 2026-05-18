@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TopBar } from './components/layout/TopBar';
-import { NavSidebar, type FilterView } from './components/layout/NavSidebar';
+import { NavSidebar, type FilterView, type TargetGroupBy } from './components/layout/NavSidebar';
 import { TargetTable } from './components/dashboard/TargetTable';
 import { DetailPanel } from './components/dashboard/DetailPanel';
 import { useDashboardState } from './hooks/useDashboardState';
@@ -8,6 +8,8 @@ import { useDashboardState } from './hooks/useDashboardState';
 export default function App() {
   const state = useDashboardState();
   const [filterView, setFilterView] = useState<FilterView>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [groupBy, setGroupBy] = useState<TargetGroupBy>('status');
   const showDetail = state.selectedDirectoryName !== null || state.isDraftContext;
   const detailContextKey = showDetail
     ? state.isDraftContext
@@ -22,7 +24,14 @@ export default function App() {
         <NavSidebar state={state} filterView={filterView} setFilterView={setFilterView} />
         <div className="main-panel">
           <div className="target-table-section">
-            <TargetTable state={state} filterView={filterView} />
+            <TargetTable
+              state={state}
+              filterView={filterView}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              groupBy={groupBy}
+              setGroupBy={setGroupBy}
+            />
           </div>
           {showDetail ? (
             <div className="detail-section">

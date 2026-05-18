@@ -12,29 +12,40 @@ import type {
   SnapshotArtifactRecord,
   TargetDocumentRecord,
   TargetArtifactHistory,
+  TargetDelimiterMode,
+  TargetDraft,
+  TargetDraftCanonicalizer,
+  TargetDraftSession,
   TargetMutationResult,
   TargetPreview,
+  TargetPreviewRequest,
+  TargetRegexFlag,
   TargetRunResult,
+  TargetSaveRequest,
+  TargetSelectionMatch,
   TargetSummary,
   TargetTemplate,
   TargetTemplateKind,
+  TargetWhitespaceMode,
   WorkspaceSnapshot,
   WorkspaceSource,
 } from '../types';
 import { APP_NAME, APP_VERSION } from './appVersion';
 
-type SaveTargetRequest = {
-  previousDirectoryName?: string | null;
-  rawToml: string;
-};
-
 type MockTargetDocument = Omit<
   TargetDocumentRecord,
-  'canonicalToml' | 'displayName' | 'enabled' | 'stateDocument' | 'statusReport' | 'targetId'
+  | 'canonicalToml'
+  | 'displayName'
+  | 'enabled'
+  | 'guidedSession'
+  | 'stateDocument'
+  | 'statusReport'
+  | 'targetId'
 > & {
   canonicalToml: string;
   displayName: string;
   enabled: true;
+  guidedSession: TargetDraftSession | null;
   stateDocument: JsonValue;
   statusReport: JsonValue;
   targetId: string;
@@ -328,6 +339,7 @@ function makeDocument(
     targetFilePath: `${workspacePath}/${directoryName}/target.toml`,
     rawToml,
     canonicalToml: rawToml,
+    guidedSession: trySessionFromRawToml(rawToml),
     targetId: target.targetId,
     displayName: target.displayName,
     enabled: true,
@@ -340,6 +352,7 @@ function makeDocument(
       target.baselinePhase,
       target.lastRunOutcome,
       target.lastRunAt,
+      target.artifactHistory ?? null,
     ),
     artifactHistory: target.artifactHistory ?? null,
     artifactIssues: [],
@@ -358,11 +371,12 @@ function documentToSummary(document: MockTargetDocument): TargetSummary {
     directoryName: document.directoryName,
     targetDirectoryPath: document.targetDirectoryPath,
     targetId: document.targetId,
+    runnableTargetId: document.targetId,
     displayName: document.displayName,
     enabled: document.enabled,
     sourceKind: parseSourceKind(document.rawToml),
     sourceLocator: parseSourceLocator(document.rawToml),
-    selectionKind: 'css_selector',
+    selectionKind: parseSelectionKind(document.rawToml),
     selectionLabel: parseSelectionLabel(document.rawToml),
     compareBasis: parseCompareBasis(document.rawToml),
     statusKind,
@@ -552,13 +566,105 @@ function resolveDelayedMock<T>(factory: () => T, delayMs = DOCUMENT_LOAD_DELAY_M
   });
 }
 
-function parseField(rawToml: string, name: string) {
-  const match = rawToml.match(new RegExp(`^${name}\\s*=\\s*"([^"]+)"$`, 'm'));
-  return match?.[1] ?? null;
+type ParsedScalar = string | number | boolean | string[];
+
+type ParsedTable = Record<string, ParsedScalar>;
+
+type ParsedMockToml = {
+  root: ParsedTable;
+  tables: Record<string, ParsedTable>;
+  arrayTables: Record<string, ParsedTable[]>;
+};
+
+function parseMockScalar(rawValue: string): ParsedScalar {
+  const trimmed = rawValue.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+  if (trimmed === 'true') {
+    return true;
+  }
+  if (trimmed === 'false') {
+    return false;
+  }
+  if (/^\d+$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    const body = trimmed.slice(1, -1).trim();
+    if (body.length === 0) {
+      return [];
+    }
+    return body
+      .split(',')
+      .map((item) => item.trim())
+      .map((item) => item.replace(/^"/u, '').replace(/"$/u, ''));
+  }
+  return trimmed;
+}
+
+function parseMockToml(rawToml: string): ParsedMockToml {
+  const parsed: ParsedMockToml = {
+    root: {},
+    tables: {},
+    arrayTables: {},
+  };
+  let currentTable: ParsedTable = parsed.root;
+
+  for (const rawLine of rawToml.split('\n')) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith('#')) {
+      continue;
+    }
+    if (line.startsWith('[[') && line.endsWith(']]')) {
+      const name = line.slice(2, -2).trim();
+      const nextTable: ParsedTable = {};
+      parsed.arrayTables[name] = [...(parsed.arrayTables[name] ?? []), nextTable];
+      currentTable = nextTable;
+      continue;
+    }
+    if (line.startsWith('[') && line.endsWith(']')) {
+      const name = line.slice(1, -1).trim();
+      parsed.tables[name] = parsed.tables[name] ?? {};
+      currentTable = parsed.tables[name];
+      continue;
+    }
+    const separator = line.indexOf('=');
+    if (separator < 0) {
+      continue;
+    }
+    const key = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1);
+    currentTable[key] = parseMockScalar(value);
+  }
+
+  return parsed;
+}
+
+function readParsedString(table: ParsedTable | undefined, key: string) {
+  const value = table?.[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function readParsedNumber(table: ParsedTable | undefined, key: string) {
+  const value = table?.[key];
+  return typeof value === 'number' ? value : null;
+}
+
+function readParsedBoolean(table: ParsedTable | undefined, key: string) {
+  const value = table?.[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+function readParsedStringArray(table: ParsedTable | undefined, key: string) {
+  const value = table?.[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function parseDirectoryName(rawToml: string) {
-  const targetId = parseField(rawToml, 'target_id');
+  const targetId = readParsedString(parseMockToml(rawToml).root, 'target_id');
   if (!targetId) {
     throw new Error('target_id is required.');
   }
@@ -566,24 +672,306 @@ function parseDirectoryName(rawToml: string) {
 }
 
 function parseDisplayName(rawToml: string) {
-  return parseField(rawToml, 'display_name') ?? parseDirectoryName(rawToml);
+  const parsed = parseMockToml(rawToml);
+  return readParsedString(parsed.root, 'display_name') ?? parseDirectoryName(rawToml);
+}
+
+function draftFromParsedToml(parsed: ParsedMockToml): TargetDraft {
+  const targetId = readParsedString(parsed.root, 'target_id');
+  if (!targetId) {
+    throw new Error('target_id is required.');
+  }
+  const kind = readParsedString(parsed.tables.target, 'kind');
+  const selectionKind = readParsedString(parsed.tables.selection, 'kind');
+  const compareBasis = readParsedString(parsed.tables.compare, 'basis');
+  if (kind !== 'http' && kind !== 'file') {
+    throw new Error('target.kind must be http or file.');
+  }
+  if (selectionKind !== 'css_selector' && selectionKind !== 'delimiter_pair') {
+    throw new Error('selection.kind must be css_selector or delimiter_pair.');
+  }
+  if (compareBasis !== 'text' && compareBasis !== 'inner_html' && compareBasis !== 'outer_html') {
+    throw new Error('compare.basis must be text, inner_html, or outer_html.');
+  }
+
+  return {
+    kind,
+    targetId,
+    displayName: readParsedString(parsed.root, 'display_name') ?? targetId,
+    enabled: readParsedBoolean(parsed.root, 'enabled') ?? true,
+    sourceLocator:
+      readParsedString(parsed.tables.target, 'source_url') ??
+      readParsedString(parsed.tables.target, 'file_path') ??
+      '',
+    fetchMethod: (readParsedString(parsed.tables.fetch, 'method') as 'GET' | null) ?? null,
+    fetchTimeoutMs: readParsedNumber(parsed.tables.fetch, 'timeout_ms'),
+    fetchMaxBytes: readParsedNumber(parsed.tables.fetch, 'max_bytes') ?? 2_000_000,
+    fetchUserAgent: readParsedString(parsed.tables.fetch, 'user_agent'),
+    fetchFollowRedirects: readParsedBoolean(parsed.tables.fetch, 'follow_redirects'),
+    fetchAccept: readParsedString(parsed.tables.fetch, 'accept'),
+    selectionKind,
+    selectionMatch:
+      (readParsedString(parsed.tables.selection, 'match') as TargetSelectionMatch | null) ??
+      'single',
+    selectionIndex: readParsedNumber(parsed.tables.selection, 'index'),
+    selectionSelector: readParsedString(parsed.tables.selection, 'selector'),
+    selectionStart: readParsedString(parsed.tables.selection, 'start'),
+    selectionEnd: readParsedString(parsed.tables.selection, 'end'),
+    selectionDelimiterMode:
+      (readParsedString(parsed.tables.selection, 'mode') as TargetDelimiterMode | null) ?? null,
+    selectionIncludeStart: readParsedBoolean(parsed.tables.selection, 'include_start'),
+    selectionIncludeEnd: readParsedBoolean(parsed.tables.selection, 'include_end'),
+    selectionRegexFlags: readParsedStringArray(
+      parsed.tables.selection,
+      'flags',
+    ) as TargetRegexFlag[],
+    compareBasis,
+    compareWhitespace:
+      (readParsedString(parsed.tables.compare, 'whitespace') as TargetWhitespaceMode | null) ??
+      null,
+    compareRewriteUrls: readParsedBoolean(parsed.tables.compare, 'rewrite_urls') ?? false,
+    compareCanonicalizers: (parsed.arrayTables['compare.canonicalization'] ?? []).map((entry) => ({
+      kind: (readParsedString(entry, 'kind') as TargetDraftCanonicalizer['kind'] | null) ?? 'trim',
+      pattern: readParsedString(entry, 'pattern'),
+      flags: readParsedStringArray(entry, 'flags') as TargetRegexFlag[],
+    })),
+    storageHistoryLimit: readParsedNumber(parsed.tables.storage, 'history_limit') ?? 20,
+  };
+}
+
+function sessionFromRawToml(rawToml: string): TargetDraftSession {
+  return {
+    draft: draftFromParsedToml(parseMockToml(rawToml)),
+    contractSeed: {},
+  };
+}
+
+function trySessionFromRawToml(rawToml: string): TargetDraftSession | null {
+  try {
+    return sessionFromRawToml(rawToml);
+  } catch {
+    return null;
+  }
+}
+
+function selectionLabelFromDraft(draft: TargetDraft) {
+  if (draft.selectionKind === 'css_selector') {
+    const selector = draft.selectionSelector ?? 'selector';
+    if (draft.selectionMatch === 'nth') {
+      return `${selector} (nth ${String(draft.selectionIndex ?? 1)})`;
+    }
+    return `${selector} (${draft.selectionMatch})`;
+  }
+
+  const start = draft.selectionStart ?? 'start';
+  const end = draft.selectionEnd ?? 'end';
+  if (draft.selectionMatch === 'nth') {
+    return `${start} ... ${end} (nth ${String(draft.selectionIndex ?? 1)})`;
+  }
+  return `${start} ... ${end} (${draft.selectionMatch})`;
+}
+
+function compareArtifactFromDraft(draft: TargetDraft) {
+  if (draft.compareBasis === 'outer_html') {
+    return `<article class="preview-fragment"><h1>${draft.displayName}</h1><p>${draft.sourceLocator}</p></article>`;
+  }
+  if (draft.compareBasis === 'inner_html') {
+    return `<h1>${draft.displayName}</h1><p>${draft.sourceLocator}</p>`;
+  }
+  return [draft.displayName, draft.sourceLocator, selectionLabelFromDraft(draft)].join('\n');
+}
+
+function previewOuterHtmlFromDraft(draft: TargetDraft) {
+  const selectionSummary =
+    draft.selectionKind === 'css_selector'
+      ? (draft.selectionSelector ?? 'main')
+      : `${draft.selectionStart ?? 'start'} ... ${draft.selectionEnd ?? 'end'}`;
+  return [
+    '<section class="dataarm-preview-surface">',
+    `  <article data-kind="${draft.kind}">`,
+    `    <h1>${draft.displayName}</h1>`,
+    `    <p class="preview-source">${draft.sourceLocator}</p>`,
+    `    <p class="preview-selection">${selectionSummary}</p>`,
+    '  </article>',
+    '</section>',
+  ].join('\n');
+}
+
+function previewSelectionEvidenceFromDraft(draft: TargetDraft) {
+  if (draft.selectionKind === 'delimiter_pair') {
+    return {
+      kind: 'delimiter_pair',
+      selected_range: { start_byte: 0, end_byte: 42 },
+      inner_range: { start_byte: 4, end_byte: 38 },
+      outer_range: { start_byte: 0, end_byte: 42 },
+      include_start: draft.selectionIncludeStart ?? false,
+      include_end: draft.selectionIncludeEnd ?? false,
+    };
+  }
+
+  return {
+    kind: 'css_selector',
+    path: draft.selectionSelector ?? 'main',
+    tag_name: 'article',
+  };
+}
+
+function buildPreviewSnapshot(draft: TargetDraft): SnapshotArtifactRecord {
+  const compareText = compareArtifactFromDraft(draft);
+  const outerHtml = previewOuterHtmlFromDraft(draft);
+  return {
+    slot: 'current',
+    capturedAt: MOCK_NOW,
+    compareDigestSha256: fakeDigest(`preview-compare-${draft.targetId}`),
+    outerHtmlSha256: fakeDigest(`preview-outer-${draft.targetId}`),
+    comparePath: `snapshots/current/${draft.targetId}/compare.txt`,
+    outerHtmlPath: `snapshots/current/${draft.targetId}/outer.html`,
+    extractionPath: `snapshots/current/${draft.targetId}/extraction.json`,
+    compareText,
+    outerHtml,
+    extractionRecord: {
+      schema_name: 'ffhn.extraction_record',
+      compare_basis: draft.compareBasis,
+      selection_kind: draft.selectionKind,
+      selection_match: draft.selectionMatch,
+      selected_candidate_index: draft.selectionIndex ?? 1,
+      candidate_count: 1,
+      warning_codes: [],
+      created_at: MOCK_NOW,
+      selection_evidence: previewSelectionEvidenceFromDraft(draft),
+      monitoring_contract_digest_sha256: fakeDigest(`contract-${draft.targetId}`),
+    },
+  };
+}
+
+function serializeDraftSession(session: TargetDraftSession) {
+  const draft = session.draft;
+  const lines = [
+    'schema_name = "ffhn.target"',
+    'schema_version = 4',
+    `target_id = "${draft.targetId}"`,
+    `display_name = "${draft.displayName}"`,
+    `enabled = ${draft.enabled ? 'true' : 'false'}`,
+    '',
+    '[target]',
+    `kind = "${draft.kind}"`,
+    draft.kind === 'http'
+      ? `source_url = "${draft.sourceLocator}"`
+      : `file_path = "${draft.sourceLocator}"`,
+    '',
+    '[fetch]',
+    `engine = "${draft.kind}"`,
+    `max_bytes = ${String(draft.fetchMaxBytes)}`,
+  ];
+
+  if (draft.kind === 'http') {
+    lines.push(
+      `method = "${draft.fetchMethod ?? 'GET'}"`,
+      `timeout_ms = ${String(draft.fetchTimeoutMs ?? 15_000)}`,
+      `user_agent = "${draft.fetchUserAgent ?? 'dataarm/template'}"`,
+      `follow_redirects = ${(draft.fetchFollowRedirects ?? true) ? 'true' : 'false'}`,
+      `accept = "${draft.fetchAccept ?? 'text/html,application/xhtml+xml'}"`,
+    );
+  }
+
+  lines.push('', '[selection]', `kind = "${draft.selectionKind}"`);
+
+  if (draft.selectionKind === 'css_selector') {
+    lines.push(`selector = "${draft.selectionSelector ?? 'main'}"`);
+  } else {
+    lines.push(
+      `start = "${draft.selectionStart ?? '<main>'}"`,
+      `end = "${draft.selectionEnd ?? '</main>'}"`,
+      `mode = "${draft.selectionDelimiterMode ?? 'literal'}"`,
+      `include_start = ${draft.selectionIncludeStart ? 'true' : 'false'}`,
+      `include_end = ${draft.selectionIncludeEnd ? 'true' : 'false'}`,
+    );
+    if (draft.selectionRegexFlags.length > 0) {
+      lines.push(`flags = [${draft.selectionRegexFlags.map((flag) => `"${flag}"`).join(', ')}]`);
+    }
+  }
+
+  lines.push(`match = "${draft.selectionMatch}"`);
+  if (draft.selectionMatch === 'nth' && draft.selectionIndex != null) {
+    lines.push(`index = ${String(draft.selectionIndex)}`);
+  }
+
+  lines.push(
+    '',
+    '[compare]',
+    `basis = "${draft.compareBasis}"`,
+    `rewrite_urls = ${draft.compareRewriteUrls ? 'true' : 'false'}`,
+  );
+
+  if (draft.compareBasis === 'text') {
+    lines.push(`whitespace = "${draft.compareWhitespace ?? 'normalize'}"`);
+  }
+
+  for (const canonicalizer of draft.compareCanonicalizers) {
+    lines.push('', '[[compare.canonicalization]]', `kind = "${canonicalizer.kind}"`);
+    if (canonicalizer.pattern) {
+      lines.push(`pattern = "${canonicalizer.pattern}"`);
+    }
+    if (canonicalizer.flags.length > 0) {
+      lines.push(`flags = [${canonicalizer.flags.map((flag) => `"${flag}"`).join(', ')}]`);
+    }
+  }
+
+  lines.push('', '[storage]', `history_limit = ${String(draft.storageHistoryLimit)}`, '');
+  return lines.join('\n');
 }
 
 function parseSourceKind(rawToml: string) {
-  return rawToml.includes('kind = "http"') ? 'http' : 'file';
+  const kind = readParsedString(parseMockToml(rawToml).tables.target, 'kind');
+  return kind === 'http' || kind === 'file' ? kind : null;
 }
 
 function parseSourceLocator(rawToml: string) {
-  return parseField(rawToml, 'source_url') ?? parseField(rawToml, 'file_path') ?? 'Unknown source';
+  const parsed = parseMockToml(rawToml);
+  return (
+    readParsedString(parsed.tables.target, 'source_url') ??
+    readParsedString(parsed.tables.target, 'file_path') ??
+    'Unknown source'
+  );
+}
+
+function parseSelectionKind(rawToml: string) {
+  const kind = readParsedString(parseMockToml(rawToml).tables.selection, 'kind');
+  return kind === 'css_selector' || kind === 'delimiter_pair' ? kind : null;
 }
 
 function parseSelectionLabel(rawToml: string) {
-  const selector = parseField(rawToml, 'selector');
-  return selector ? `${selector} (single)` : 'Selection preview unavailable';
+  const parsed = parseMockToml(rawToml);
+  const selectionKind = parseSelectionKind(rawToml);
+  const selectionMatch =
+    (readParsedString(parsed.tables.selection, 'match') as TargetSelectionMatch | null) ?? 'single';
+  if (selectionKind === 'css_selector') {
+    const selector = readParsedString(parsed.tables.selection, 'selector');
+    if (!selector) {
+      return 'Selection preview unavailable';
+    }
+    if (selectionMatch === 'nth') {
+      return `${selector} (nth ${String(readParsedNumber(parsed.tables.selection, 'index') ?? 1)})`;
+    }
+    return `${selector} (${selectionMatch})`;
+  }
+  if (selectionKind === 'delimiter_pair') {
+    const start = readParsedString(parsed.tables.selection, 'start');
+    const end = readParsedString(parsed.tables.selection, 'end');
+    if (!start || !end) {
+      return 'Selection preview unavailable';
+    }
+    if (selectionMatch === 'nth') {
+      return `${start} ... ${end} (nth ${String(readParsedNumber(parsed.tables.selection, 'index') ?? 1)})`;
+    }
+    return `${start} ... ${end} (${selectionMatch})`;
+  }
+  return 'Selection preview unavailable';
 }
 
 function parseCompareBasis(rawToml: string) {
-  return parseField(rawToml, 'basis') ?? 'text';
+  const basis = readParsedString(parseMockToml(rawToml).tables.compare, 'basis');
+  return basis === 'text' || basis === 'inner_html' || basis === 'outer_html' ? basis : 'text';
 }
 
 function recalculateWorkspace(workspace: MockWorkspace) {
@@ -619,7 +1007,7 @@ function workspaceSnapshot(workspace: MockWorkspace): WorkspaceSnapshot {
       workspacePath: workspace.workspacePath,
       workspaceSource: workspace.workspaceSource,
       targetCount: targets.length,
-      runnableTargetCount: targets.filter((target) => target.targetId != null).length,
+      runnableTargetCount: targets.filter((target) => target.runnableTargetId != null).length,
       issueCount: targets.filter((target) => target.errorMessage != null).length,
       lastRunCount: targets.filter((target) => target.lastRunAt != null).length,
     },
@@ -675,33 +1063,50 @@ export function readTargetMock(directoryName: string): Promise<TargetDocumentRec
 }
 
 export function getTargetTemplateMock(kind: TargetTemplateKind): Promise<TargetTemplate> {
-  return resolveDelayedMock(() => ({
-    kind,
-    rawToml: kind === 'http' ? httpTemplate : fileTemplate,
-  }));
+  return resolveDelayedMock(() => {
+    const canonicalToml = kind === 'http' ? httpTemplate : fileTemplate;
+    return {
+      kind,
+      draftSession: sessionFromRawToml(canonicalToml),
+      canonicalToml,
+    };
+  });
 }
 
-export function previewTargetMock(rawToml: string): Promise<TargetPreview> {
+export function previewTargetMock(request: TargetPreviewRequest): Promise<TargetPreview> {
   return resolveMock(() => {
+    const rawToml =
+      request.draftSession != null
+        ? serializeDraftSession(request.draftSession)
+        : (request.rawToml ?? '');
+    const draftSession =
+      request.draftSession != null ? request.draftSession : sessionFromRawToml(rawToml);
     const targetId = parseDirectoryName(rawToml);
     const displayName = parseDisplayName(rawToml);
     return {
       targetId,
       displayName,
       canonicalToml: `${rawToml.trim()}\n`,
+      draftSession,
       statusReport: mockStatusReport(targetId, displayName, 'pending'),
       dryRunReport: mockRunReport(targetId, displayName, 'initialized'),
+      previewSnapshot: buildPreviewSnapshot(draftSession.draft),
+      previewArtifactIssues: [],
     };
   });
 }
 
-export function saveTargetMock(request: SaveTargetRequest): Promise<TargetMutationResult> {
+export function saveTargetMock(request: TargetSaveRequest): Promise<TargetMutationResult> {
   return resolveMock(() => {
     const workspace = currentWorkspace();
-    const directoryName = parseDirectoryName(request.rawToml);
-    const displayName = parseDisplayName(request.rawToml);
-    const sourceLocator = parseSourceLocator(request.rawToml);
-    const canonicalToml = `${request.rawToml.trim()}\n`;
+    const rawToml =
+      request.draftSession != null
+        ? serializeDraftSession(request.draftSession)
+        : (request.rawToml ?? '');
+    const directoryName = parseDirectoryName(rawToml);
+    const displayName = parseDisplayName(rawToml);
+    const sourceLocator = parseSourceLocator(rawToml);
+    const canonicalToml = `${rawToml.trim()}\n`;
 
     if (request.previousDirectoryName && request.previousDirectoryName !== directoryName) {
       workspace.documents.delete(request.previousDirectoryName);
@@ -1027,6 +1432,8 @@ function pluralize(count: number, singular: string) {
 
 export const __mockDesktopInternals = Object.freeze({
   buildArtifactHistory,
+  buildPreviewSnapshot,
+  compareArtifactFromDraft,
   createEmptyWorkspace,
   documentToSummary,
   makeDocument,
@@ -1034,15 +1441,22 @@ export const __mockDesktopInternals = Object.freeze({
   parseCompareBasis,
   parseDisplayName,
   parseDirectoryName,
+  parseMockScalar,
+  parseMockToml,
   parseSelectionLabel,
   parseSourceKind,
   parseSourceLocator,
   pathBasename,
   pluralize,
+  previewOuterHtmlFromDraft,
+  previewSelectionEvidenceFromDraft,
   readStatusKind,
   recalculateWorkspace,
   recordTargetRunNotification,
   recordWorkspaceRunNotification,
   resolveDelayedMock,
+  selectionLabelFromDraft,
+  serializeDraftSession,
+  sessionFromRawToml,
   workspaceSourceForPath,
 });

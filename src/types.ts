@@ -63,6 +63,7 @@ export type TargetSummary = {
   directoryName: string;
   targetDirectoryPath: string;
   targetId: string | null;
+  runnableTargetId: string | null;
   displayName: string | null;
   enabled: boolean | null;
   sourceKind: string | null;
@@ -119,6 +120,7 @@ export type TargetDocumentRecord = {
   targetFilePath: string;
   rawToml: string;
   canonicalToml: string | null;
+  guidedSession: TargetDraftSession | null;
   targetId: string | null;
   displayName: string | null;
   enabled: boolean | null;
@@ -153,9 +155,85 @@ export type TargetArtifactHistory = {
 
 export type TargetTemplateKind = 'http' | 'file';
 
+export type TargetSelectionKind = 'css_selector' | 'delimiter_pair';
+
+export type TargetSelectionMatch = 'single' | 'first' | 'nth';
+
+export type TargetDelimiterMode = 'literal' | 'regex';
+
+export type TargetCompareBasis = 'text' | 'inner_html' | 'outer_html';
+
+export type TargetWhitespaceMode = 'preserve' | 'normalize';
+
+export type TargetRegexFlag =
+  | 'case_insensitive'
+  | 'multi_line'
+  | 'dot_matches_new_line'
+  | 'swap_greed'
+  | 'ignore_whitespace';
+
+export type TargetCanonicalizerKind =
+  | 'trim'
+  | 'collapse_whitespace'
+  | 'normalize_newlines'
+  | 'strip_regex'
+  | 'lowercase';
+
+export type TargetDraftCanonicalizer = {
+  kind: TargetCanonicalizerKind;
+  pattern: string | null;
+  flags: TargetRegexFlag[];
+};
+
+export type TargetDraft = {
+  kind: TargetTemplateKind;
+  targetId: string;
+  displayName: string;
+  enabled: boolean;
+  sourceLocator: string;
+  fetchMethod: 'GET' | null;
+  fetchTimeoutMs: number | null;
+  fetchMaxBytes: number;
+  fetchUserAgent: string | null;
+  fetchFollowRedirects: boolean | null;
+  fetchAccept: string | null;
+  selectionKind: TargetSelectionKind;
+  selectionMatch: TargetSelectionMatch;
+  selectionIndex: number | null;
+  selectionSelector: string | null;
+  selectionStart: string | null;
+  selectionEnd: string | null;
+  selectionDelimiterMode: TargetDelimiterMode | null;
+  selectionIncludeStart: boolean | null;
+  selectionIncludeEnd: boolean | null;
+  selectionRegexFlags: TargetRegexFlag[];
+  compareBasis: TargetCompareBasis;
+  compareWhitespace: TargetWhitespaceMode | null;
+  compareRewriteUrls: boolean;
+  compareCanonicalizers: TargetDraftCanonicalizer[];
+  storageHistoryLimit: number;
+};
+
+export type TargetDraftSession = {
+  draft: TargetDraft;
+  contractSeed: JsonValue;
+};
+
+export type TargetPreviewRequest = {
+  draftSession?: TargetDraftSession | null;
+  rawToml?: string | null;
+};
+
+export type TargetSaveRequest = {
+  previousDirectoryName?: string | null;
+  draftSession?: TargetDraftSession | null;
+  rawToml?: string | null;
+};
+
 export type TargetTemplate = {
   kind: TargetTemplateKind;
-  rawToml: string;
+  draftSession: TargetDraftSession;
+  canonicalToml: string;
 };
 
 export type TargetPreview = {
@@ -164,6 +242,9 @@ export type TargetPreview = {
   canonicalToml: string;
   statusReport: JsonValue;
   dryRunReport: JsonValue;
+  draftSession: TargetDraftSession;
+  previewSnapshot: SnapshotArtifactRecord | null;
+  previewArtifactIssues: string[];
 };
 
 export type TargetMutationResult = {

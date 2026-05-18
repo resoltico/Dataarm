@@ -43,7 +43,41 @@ describe('desktop api bridge', () => {
   });
 
   it('routes every command to the mock backend when tauri internals are absent', async () => {
-    const targetTemplate = { kind: 'http', rawToml: 'target_id = "http"' };
+    const targetTemplate = {
+      kind: 'http',
+      draftSession: {
+        draft: {
+          kind: 'http',
+          targetId: 'http',
+          displayName: 'HTTP',
+          enabled: true,
+          sourceLocator: 'https://example.com',
+          fetchMethod: 'GET',
+          fetchTimeoutMs: 15000,
+          fetchMaxBytes: 2000000,
+          fetchUserAgent: 'dataarm/template',
+          fetchFollowRedirects: true,
+          fetchAccept: 'text/html,application/xhtml+xml',
+          selectionKind: 'css_selector',
+          selectionMatch: 'single',
+          selectionIndex: null,
+          selectionSelector: 'main',
+          selectionStart: null,
+          selectionEnd: null,
+          selectionDelimiterMode: null,
+          selectionIncludeStart: null,
+          selectionIncludeEnd: null,
+          selectionRegexFlags: [],
+          compareBasis: 'text',
+          compareWhitespace: 'normalize',
+          compareRewriteUrls: false,
+          compareCanonicalizers: [],
+          storageHistoryLimit: 20,
+        },
+        contractSeed: {},
+      },
+      canonicalToml: 'target_id = "http"\n',
+    };
     mockDesktop.bootstrapMock.mockResolvedValue('bootstrap');
     mockDesktop.openWorkspaceMock.mockResolvedValue('open-workspace');
     mockDesktop.refreshWorkspaceMock.mockResolvedValue('refresh-workspace');
@@ -66,7 +100,7 @@ describe('desktop api bridge', () => {
     await expect(api.createWorkspace('/tmp/new')).resolves.toBe('create-workspace');
     await expect(api.readTarget('demo')).resolves.toBe('read-target');
     await expect(api.getTargetTemplate('http')).resolves.toBe(targetTemplate);
-    await expect(api.previewTarget('raw')).resolves.toBe('preview-target');
+    await expect(api.previewTarget({ rawToml: 'raw' })).resolves.toBe('preview-target');
     await expect(api.saveTarget({ rawToml: 'raw' })).resolves.toBe('save-target');
     await expect(
       api.updateNotificationSettings({ notifyWhen: 'off', delivery: 'both' }),
@@ -81,7 +115,7 @@ describe('desktop api bridge', () => {
     expect(mockDesktop.openWorkspaceMock).toHaveBeenCalledWith('/tmp/demo');
     expect(mockDesktop.createWorkspaceMock).toHaveBeenCalledWith('/tmp/new');
     expect(mockDesktop.getTargetTemplateMock).toHaveBeenCalledWith('http');
-    expect(mockDesktop.previewTargetMock).toHaveBeenCalledWith('raw');
+    expect(mockDesktop.previewTargetMock).toHaveBeenCalledWith({ rawToml: 'raw' });
     expect(mockDesktop.saveTargetMock).toHaveBeenCalledWith({ rawToml: 'raw' });
     expect(mockDesktop.updateNotificationSettingsMock).toHaveBeenCalledWith({
       notifyWhen: 'off',
@@ -103,7 +137,7 @@ describe('desktop api bridge', () => {
     await api.createWorkspace('/tmp/new');
     await api.readTarget('demo');
     await api.getTargetTemplate('file');
-    await api.previewTarget('raw');
+    await api.previewTarget({ rawToml: 'raw' });
     await api.saveTarget({ previousDirectoryName: 'old', rawToml: 'raw' });
     await api.updateNotificationSettings({ notifyWhen: 'errors_only', delivery: 'system' });
     await api.clearNotificationFeed();
@@ -119,7 +153,7 @@ describe('desktop api bridge', () => {
     expect(invoke).toHaveBeenNthCalledWith(4, 'create_workspace', { workspacePath: '/tmp/new' });
     expect(invoke).toHaveBeenNthCalledWith(5, 'read_target', { directoryName: 'demo' });
     expect(invoke).toHaveBeenNthCalledWith(6, 'get_target_template', { kind: 'file' });
-    expect(invoke).toHaveBeenNthCalledWith(7, 'preview_target', { rawToml: 'raw' });
+    expect(invoke).toHaveBeenNthCalledWith(7, 'preview_target', { request: { rawToml: 'raw' } });
     expect(invoke).toHaveBeenNthCalledWith(8, 'save_target', {
       request: { previousDirectoryName: 'old', rawToml: 'raw' },
     });

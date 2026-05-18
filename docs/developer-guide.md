@@ -43,17 +43,28 @@ That rewrites the duplicated consumers used by npm, Cargo, Tauri bundling, and b
 ### Browser workbench
 
 ```bash
-npm run dev
+npm run dev -- --host 127.0.0.1
 ```
 
-This starts Vite on `http://localhost:1420` and uses the mock desktop backend from [src/lib/mockDesktop.ts](../src/lib/mockDesktop.ts).
+This starts Vite on an explicit localhost bind and uses the mock desktop backend from [src/lib/mockDesktop.ts](../src/lib/mockDesktop.ts).
 
 Use this loop for:
 
 - layout work
 - copy and interaction refinement
+- guided target-authoring flow work
 - Playwright-oriented UI debugging
 - state-flow iteration that does not require native shell integration
+
+### Backend field-test matrix
+
+```bash
+npm run fieldtest:backend
+```
+
+Use `npm run fieldtest:backend -- --live` before public releases when you want the real Rust backend to exercise local fixture servers, deliberate bad operator inputs, and live public websites.
+
+Dataarm preserves the upstream FFHN and HTMLCut selection contract here. When a guided target uses `nth`, the index is 1-based.
 
 ### Native desktop loop
 
@@ -70,6 +81,8 @@ Use this loop for:
 - filesystem operations
 - native path opening
 - packaging-adjacent debugging
+
+Preview inspection is intentionally artifact-backed. Because `ffhn-core` dry-run does not persist runtime artifacts, Dataarm materializes one disposable run inside a temporary preview workspace whenever the rendered, compare, and extraction tabs need concrete snapshot files.
 
 ## Quality Gates
 
