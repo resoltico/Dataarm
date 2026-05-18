@@ -60,6 +60,10 @@ for (const snippet of requiredWorkflowSnippets) {
   }
 }
 
+if (workflow.includes('CARGO_TARGET_DIR:') || workflow.includes('CARGO_BUILD_BUILD_DIR:')) {
+  fail('release workflow must not override Cargo artifact directories; use .cargo/config.toml');
+}
+
 if (pkg.scripts['verify:release-publishing'] !== 'node scripts/verify-release-publishing.mjs') {
   fail('package.json is missing the expected verify:release-publishing script');
 }

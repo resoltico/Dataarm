@@ -59,6 +59,12 @@ if (workflow.includes('\n  push:\n')) {
   );
 }
 
+if (workflow.includes('CARGO_TARGET_DIR:') || workflow.includes('CARGO_BUILD_BUILD_DIR:')) {
+  fail(
+    'package-unsigned-macos workflow must not override Cargo artifact directories; use .cargo/config.toml',
+  );
+}
+
 if (pkg.scripts['verify:github-packaging'] !== 'node scripts/verify-github-packaging.mjs') {
   fail('package.json is missing the expected verify:github-packaging script');
 }

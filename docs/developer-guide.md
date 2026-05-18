@@ -132,6 +132,10 @@ The packaged `.app` inside that DMG must carry its release legal surface under
 - `Cargo.lock`
 - `package-lock.json`
 
+Do not override `CARGO_TARGET_DIR` or `CARGO_BUILD_BUILD_DIR` in GitHub workflows. The checked-in
+`.cargo/config.toml` artifact-root contract is the single source of truth for local builds,
+quality gates, packaging, and release publication.
+
 There is no sidecar fetch or upstream checksum intake step in this repository anymore.
 
 ## Public Release Publication

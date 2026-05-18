@@ -208,6 +208,12 @@ if (parsed.hygiene?.cargoBuildDir !== '../.dataarm-artifacts/build') {
   );
 }
 
+if (parsed.hygiene?.workflowOverridesCargoArtifactDirs !== false) {
+  throw new Error(
+    'quality-gates hygiene.workflowOverridesCargoArtifactDirs must keep workflow Cargo artifact overrides disabled',
+  );
+}
+
 if (parsed.miri?.toolchain !== 'nightly-2026-03-29') {
   throw new Error('Miri toolchain pin is missing or incorrect');
 }

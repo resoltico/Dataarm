@@ -15,6 +15,7 @@ This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub rel
 - If dirty unpublished release-candidate work already lives in the primary checkout, capture it on `release-prep/X.Y.Z` first, then cut `release/X.Y.Z` from that captured commit instead of pretending dirty `main` was already release-ready.
 - `.github/workflows/package-unsigned-macos.yml` is a manual packaging smoke lane.
 - `.github/workflows/release.yml` is the tag-driven public publication lane.
+- `.cargo/config.toml` is the only maintained source for Cargo artifact directories; GitHub workflows must not override `CARGO_TARGET_DIR` or `CARGO_BUILD_BUILD_DIR`.
 - The GitHub release object is the authoritative publication record.
 - Current public assets remain unsigned and unnotarized until a future signing lane is wired deliberately.
 

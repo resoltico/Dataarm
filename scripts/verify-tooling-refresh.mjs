@@ -245,5 +245,19 @@ if (!releaseWorkflow.includes('node-version: 26.1.0')) {
 if (!releaseWorkflow.includes('toolchain: 1.95.0')) {
   fail('release workflow stable Rust pin is out of sync');
 }
+for (const [workflowName, workflowContents] of [
+  ['quality-gates', qualityWorkflow],
+  ['package-unsigned-macos', packagingWorkflow],
+  ['release', releaseWorkflow],
+]) {
+  if (workflowContents.includes('CARGO_TARGET_DIR:')) {
+    fail(`${workflowName} workflow must not override CARGO_TARGET_DIR; use .cargo/config.toml`);
+  }
+  if (workflowContents.includes('CARGO_BUILD_BUILD_DIR:')) {
+    fail(
+      `${workflowName} workflow must not override CARGO_BUILD_BUILD_DIR; use .cargo/config.toml`,
+    );
+  }
+}
 
 console.log('OK: tooling refresh verified');
