@@ -1,9 +1,0 @@
-{
-  "id": "run-001",
-  "targetId": "homepage-price-watch",
-  "status": "unchanged",
-  "startedAt": "2026-03-29T10:00:00Z",
-  "finishedAt": "2026-03-29T10:00:02Z",
-  "summary": "No change detected.",
-  "mode": "mock"
-}

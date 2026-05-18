@@ -1,67 +1,47 @@
-# ffhn-desktop
+# Dataarm
 
-Desktop wrapper for `ffhn`. Provides an operator GUI for creating, running, and inspecting FFHN targets without terminal use.
+Dataarm is a macOS desktop app for watching the exact part of a website you care about.
+Instead of telling you that an entire page changed, it helps you track one specific fragment, keep a baseline, and inspect what changed over time.
 
-## What this is
+## What It Helps You Do
 
-`ffhn-desktop` is a **strict wrapper**. It owns no extraction, orchestration, or validation logic. All of that lives in the upstream CLI tools.
+- Watch a product page section for price or availability changes
+- Track release notes, status pages, documentation sections, or policy text
+- Focus on one meaningful fragment instead of noisy full-page diffs
+- Review the current baseline, recent history, and compare output in one desktop workbench
 
-```
-ffhn-desktop  →  ffhn  →  htmlcut
-    GUI          engine     parser
-```
+## Why People Use It
 
-The desktop calls `ffhn`. Only `ffhn` calls `htmlcut`. The desktop never calls `htmlcut` directly.
+- Less noise: monitor the part of the page that matters, not the whole page shell
+- More confidence: preview the extraction before saving a watch
+- Better traceability: keep retained history and inspect past snapshots and compare output
+- Local control: your watch workspace lives on disk, not in a hosted monitoring service
 
-## Status
+## What Dataarm Does Today
 
-All five implementation phases are complete:
+Dataarm lets you:
 
-- ✅ React + TypeScript frontend, fully modular component and hook architecture
-- ✅ Tauri Rust backend with strict domain boundaries (`commands.rs` / `logic.rs` / `models.rs`)
-- ✅ Sidecar integration: deterministic binary resolution, mock fallback for development
-- ✅ Full GUI operations: target management, execution tracking, workspace + run inspection
-- ✅ Unsigned Apple Silicon DMG packaging via GitHub Actions, quality + E2E gates
+- open or create a watch workspace
+- add and edit watch targets
+- preview what a target will extract
+- run one target or a whole workspace on demand
+- inspect target status, last run, retained history, and compare artifacts
 
-## Prerequisites
+## Current Product Shape
 
-| Tool        | Version                     |
-| ----------- | --------------------------- |
-| Node.js     | `>= 24.14.1` (see `.nvmrc`) |
-| npm         | `>= 11.6.0`                 |
-| Rust stable | via `rust-toolchain.toml`   |
+Dataarm is for people who want a precise desktop website watcher rather than a generic browser bookmark tool.
+It is strongest when you already know the page section you want to monitor and you care about reliable, inspectable change tracking.
 
-## Setup
+Current builds target Apple Silicon macOS.
 
-```bash
-npm install
-```
+## Learn More
 
-The app runs in **Mock mode** by default on a fresh checkout — no real binaries required.
-To wire real `ffhn` and `htmlcut` binaries, see [docs/developer-guide.md](./docs/developer-guide.md).
+- [Documentation index](./docs/README.md)
+- [Contributing guide](./CONTRIBUTING.md)
 
-## Common Commands
+For contributors and repository maintenance, start with [docs/developer-guide.md](./docs/developer-guide.md).
 
-```bash
-npm run dev                          # UI-only dev server (browser, no Tauri)
-npm run tauri:dev                    # Full desktop dev loop (React + Rust)
+## Legal
 
-npm run sync-sidecars                # Sync compiled ffhn+htmlcut into src-tauri/binaries/
-npm run record:release-sidecar-checksums  # Refresh the pinned upstream checksum receipt
-npm run fetch:release-sidecars       # Download and verify the pinned release sidecars
-npm run check                        # Format check + lint + typecheck
-npm run quality:all                  # Full Node + Rust quality gate suite
-npm run test:e2e                     # Playwright end-to-end GUI tests
-
-npm run package:unsigned:dmg:macos-silicon   # Build unsigned Apple Silicon DMG
-```
-
-## Documentation
-
-| Document                                             | Purpose                                                                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [CHANGELOG.md](./CHANGELOG.md)                       | Notable project changes and release notes                                       |
-| [docs/developer-guide.md](./docs/developer-guide.md) | Full developer SOP: setup, multi-repo wiring, QA gates, release process         |
-| [docs/architecture.md](./docs/architecture.md)       | System design: call graph, source layout, binary resolution, state management   |
-| [RELEASE_PROTOCOL.md](./RELEASE_PROTOCOL.md)         | `gh`-first operator procedure for desktop release branches, tags, and artifacts |
-| [scripts/README.md](./scripts/README.md)             | Catalogue of all `npm run` scripts and their purpose                            |
+Dataarm is released under the [MIT License](./LICENSE). See [NOTICE](./NOTICE)
+and [PATENTS](./PATENTS.md) for dependency attributions and patent posture.

@@ -1,21 +1,40 @@
+import { useState } from 'react';
+import { TopBar } from './components/layout/TopBar';
+import { NavSidebar, type FilterView } from './components/layout/NavSidebar';
+import { TargetTable } from './components/dashboard/TargetTable';
+import { DetailPanel } from './components/dashboard/DetailPanel';
 import { useDashboardState } from './hooks/useDashboardState';
-import { Hero } from './components/layout/Hero';
-import { Sidebar } from './components/layout/Sidebar';
-import { MainDashboard } from './components/layout/MainDashboard';
 
 export default function App() {
   const state = useDashboardState();
-
-  const executionMode = state.health.data?.executionMode ?? state.appInfo.data?.mode ?? 'mock';
+  const [filterView, setFilterView] = useState<FilterView>('all');
+  const showDetail = state.selectedDirectoryName !== null || state.isDraftContext;
+  const detailContextKey = showDetail
+    ? state.isDraftContext
+      ? `draft:${state.editorMode}`
+      : `target:${state.selectedDirectoryName ?? 'none'}`
+    : 'empty';
 
   return (
     <div className="app-shell">
-      <Hero state={state} executionMode={executionMode} />
-
-      <main className="layout">
-        <Sidebar state={state} />
-        <MainDashboard state={state} />
-      </main>
+      <TopBar state={state} />
+      <div className="app-body">
+        <NavSidebar state={state} filterView={filterView} setFilterView={setFilterView} />
+        <div className="main-panel">
+          <div className="target-table-section">
+            <TargetTable state={state} filterView={filterView} />
+          </div>
+          {showDetail ? (
+            <div className="detail-section">
+              <DetailPanel key={detailContextKey} state={state} />
+            </div>
+          ) : (
+            <div className="detail-placeholder">
+              <span>Select a target to view details, or create a new one.</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -38,9 +38,9 @@ src-tauri/target/
 *.dSYM/
 
 # Workspace-local runtime state
-**/.ffhn-desktop/
-!examples/workspace-sample/.ffhn-desktop/
-!examples/workspace-sample/.ffhn-desktop/app-state.json
+**/.dataarm/
+!examples/workspace-sample/.dataarm/
+!examples/workspace-sample/.dataarm/app-state.json
 **/run-results/
 !examples/workspace-sample/run-results/
 !examples/workspace-sample/run-results/*.json

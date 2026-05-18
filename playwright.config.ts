@@ -1,21 +1,30 @@
 import { defineConfig, devices } from '@playwright/test';
+import {
+  managedPlaywrightReportRoot,
+  managedPlaywrightTestResultsRoot,
+} from './scripts/lib/artifact-roots.mjs';
+
+if (process.env.NO_COLOR) {
+  delete process.env.NO_COLOR;
+}
+
+if (process.env.FORCE_COLOR) {
+  delete process.env.FORCE_COLOR;
+}
 
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  outputDir: managedPlaywrightTestResultsRoot(),
   retries: process.env.CI ? 2 : 0,
-  reporter: 'html',
+  reporter: [['html', { open: 'never', outputFolder: managedPlaywrightReportRoot() }]],
   ...(process.env.CI ? { workers: 1 } : {}),
 
-  // Base setup explicitly mapping automated headless overrides
-  // ensuring the runner operates securely apart from real user settings
   use: {
     baseURL: 'http://localhost:1420',
     trace: 'on-first-retry',
     viewport: { width: 1280, height: 720 },
-    // Mock the host dependencies explicitly when CI drops in headless variables
-    // process.env.FFHN_DESKTOP_FFHN_BIN will override the Sidecar resolution natively
   },
 
   projects: [
@@ -29,7 +38,6 @@ export default defineConfig({
     },
   ],
 
-  // Launch Tauri / Vite specifically for executing local automated bounds
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:1420',

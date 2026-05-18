@@ -1,17 +1,19 @@
-# Vendor data
+# Vendor Data
 
-This directory stores machine-readable repository data.
-It is not a dump for arbitrary third-party material.
+This directory stores maintained machine-readable project policy.
 
-## Current groups
+## Current Files
 
-- `bundle-manifest.json`, `dmg-packaging.json`, `quality-gates.json`, and `tooling-refresh.json` define active project policy and packaging posture
-- `upstream-intake.json`, `real-binary-activation.json`, `packaged-execution-proof.json`, and `release-readiness.json` define the active project-status model consumed by the app
-- `upstream/` holds provenance notes and intake evidence, not Tauri bundle inputs
-- `checksums/` stores only live receipts and checksum manifests consumed by the current tooling and project-status model
+- `app-version.json` — canonical desktop product version contract
+- `dmg-packaging.json` — local and GitHub packaging posture for the unsigned Apple Silicon DMG
+- `quality-gates.json` — maintained quality-lane contract
+- `release-publishing.json` — tag-driven GitHub release workflow, asset inventory, and publication posture
+- `runtime-dependencies.json` — embedded `ffhn-core` intake posture, Miri seam ownership, and downstream-override policy
+- `tooling-refresh.json` — pinned toolchain and dependency posture
 
 ## Rules
 
-- do not put generated build outputs here
-- add structured data here only when the app or maintenance tooling reads it
-- remove retired metadata layers instead of piling new ones on top
+- do not store build output here
+- do not reintroduce upstream binary intake metadata here
+- add structured data only when scripts or quality gates read it
+- remove retired policy layers instead of stacking replacements beside them

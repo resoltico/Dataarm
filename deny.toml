@@ -10,18 +10,19 @@ db-urls = ["https://github.com/RustSec/advisory-db"]
 unsound = "all"
 unused-ignored-advisory = "deny"
 ignore = [
-  { id = "RUSTSEC-2025-0057", reason = "Transitive fxhash usage comes from Tauri's HTML parsing stack and has no safe upstream replacement yet." },
-  { id = "RUSTSEC-2025-0075", reason = "Transitive rust-unic advisory in tauri-utils/urlpattern; no safe upgrade is currently available upstream." },
-  { id = "RUSTSEC-2025-0080", reason = "Transitive rust-unic advisory in tauri-utils/urlpattern; no safe upgrade is currently available upstream." },
-  { id = "RUSTSEC-2025-0081", reason = "Transitive rust-unic advisory in tauri-utils/urlpattern; no safe upgrade is currently available upstream." },
-  { id = "RUSTSEC-2025-0098", reason = "Transitive rust-unic advisory in tauri-utils/urlpattern; no safe upgrade is currently available upstream." },
-  { id = "RUSTSEC-2025-0100", reason = "Transitive rust-unic advisory in tauri-utils/urlpattern; no safe upgrade is currently available upstream." }
+  { id = "RUSTSEC-2025-0075", reason = "Tauri 2.11.1 currently reaches urlpattern 0.3.0 through tauri-utils, and the rust-unic replacement remains upstream-blocked." },
+  { id = "RUSTSEC-2025-0080", reason = "Tauri 2.11.1 currently reaches urlpattern 0.3.0 through tauri-utils, and the rust-unic replacement remains upstream-blocked." },
+  { id = "RUSTSEC-2025-0081", reason = "Tauri 2.11.1 currently reaches urlpattern 0.3.0 through tauri-utils, and the rust-unic replacement remains upstream-blocked." },
+  { id = "RUSTSEC-2025-0098", reason = "Tauri 2.11.1 currently reaches urlpattern 0.3.0 through tauri-utils, and the rust-unic replacement remains upstream-blocked." },
+  { id = "RUSTSEC-2025-0100", reason = "Tauri 2.11.1 currently reaches urlpattern 0.3.0 through tauri-utils, and the rust-unic replacement remains upstream-blocked." }
 ]
 
 [licenses]
 allow = [
   "Apache-2.0",
   "BSD-3-Clause",
+  "CDLA-Permissive-2.0",
+  "ISC",
   "MIT",
   "Unicode-3.0",
   "Zlib"
@@ -49,4 +50,7 @@ highlight = "all"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = [
+  "https://github.com/resoltico/ffhn.git",
+  "https://github.com/resoltico/HTMLCut.git",
+]

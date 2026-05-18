@@ -1,129 +1,146 @@
 import { invoke } from '@tauri-apps/api/core';
+import {
+  bootstrapMock,
+  clearNotificationFeedMock,
+  createWorkspaceMock,
+  deleteTargetMock,
+  getTargetTemplateMock,
+  openTargetPathMock,
+  openWorkspacePathMock,
+  openWorkspaceMock,
+  previewTargetMock,
+  readTargetMock,
+  refreshWorkspaceMock,
+  runTargetMock,
+  runWorkspaceMock,
+  saveTargetMock,
+  updateNotificationSettingsMock,
+} from './mockDesktop';
 import type {
-  BundleHydrationStatus,
-  BundleManifest,
-  DesktopAppInfo,
-  ProbeResult,
-  ProjectStatus,
-  RecentWorkspace,
-  RunDetail,
-  RunRecord,
-  SidecarHealth,
-  TargetRecord,
-  RuntimeReadinessStatus,
-  WorkspaceDiagnostics,
-  WorkspaceSummary,
+  BatchRunResult,
+  DesktopBootstrap,
+  NotificationSettings,
+  TargetDocumentRecord,
+  TargetMutationResult,
+  TargetPreview,
+  TargetRunResult,
+  TargetTemplate,
+  TargetTemplateKind,
+  WorkspaceSnapshot,
 } from '../types';
 
-/** Returns desktop identity and current execution mode. */
-export async function getAppInfo(): Promise<DesktopAppInfo> {
-  return invoke('get_app_info');
+type SaveTargetRequest = {
+  previousDirectoryName?: string | null;
+  rawToml: string;
+};
+
+function shouldUseMockBackend() {
+  return typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window);
 }
 
-/** Returns current sidecar resolution facts for the host. */
-export async function getSidecarHealth(): Promise<SidecarHealth> {
-  return invoke('get_sidecar_health');
+export async function bootstrap(): Promise<DesktopBootstrap> {
+  if (shouldUseMockBackend()) {
+    return bootstrapMock();
+  }
+  return invoke('bootstrap');
 }
 
-/** Returns the active machine-readable bundle contract. */
-export async function getBundleManifest(): Promise<BundleManifest> {
-  return invoke('get_bundle_manifest');
-}
-
-/** Returns current bundle input presence and executability. */
-export async function getBundleHydrationStatus(): Promise<BundleHydrationStatus> {
-  return invoke('get_bundle_hydration_status');
-}
-
-/** Returns host-local runtime availability for the bundled sidecar pair. */
-export async function getRuntimeReadinessStatus(): Promise<RuntimeReadinessStatus> {
-  return invoke('get_runtime_readiness_status');
-}
-
-/** Returns the compact maintainer-facing project status surface. */
-export async function getProjectStatus(): Promise<ProjectStatus> {
-  return invoke('get_project_status');
-}
-
-/** Runs a one-shot FFHN probe against the current runtime posture. */
-export async function runFfhnProbe(): Promise<ProbeResult> {
-  return invoke('run_ffhn_probe');
-}
-
-/** Opens a workspace or falls back to the committed sample workspace. */
-export async function openWorkspace(workspacePath?: string): Promise<WorkspaceSummary> {
+export async function openWorkspace(workspacePath?: string): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return openWorkspaceMock(workspacePath);
+  }
   return invoke('open_workspace', { workspacePath });
 }
 
-/** Creates a workspace layout if needed and opens it. */
-export async function createWorkspace(workspacePath: string): Promise<WorkspaceSummary> {
+export async function refreshWorkspace(): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return refreshWorkspaceMock();
+  }
+  return invoke('refresh_workspace');
+}
+
+export async function createWorkspace(workspacePath: string): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return createWorkspaceMock(workspacePath);
+  }
   return invoke('create_workspace', { workspacePath });
 }
 
-/** Lists targets visible in the current workspace. */
-export async function listTargets(workspacePath?: string): Promise<TargetRecord[]> {
-  return invoke('list_targets', { workspacePath });
+export async function readTarget(directoryName: string): Promise<TargetDocumentRecord> {
+  if (shouldUseMockBackend()) {
+    return readTargetMock(directoryName);
+  }
+  return invoke('read_target', { directoryName });
 }
 
-/** Explicitly creates or updates a target record in the current workspace. */
-export async function createTarget(target: TargetRecord, workspacePath?: string): Promise<void> {
-  return invoke('create_target', { target, workspacePath });
+export async function getTargetTemplate(kind: TargetTemplateKind): Promise<TargetTemplate> {
+  if (shouldUseMockBackend()) {
+    return getTargetTemplateMock(kind);
+  }
+  return invoke('get_target_template', { kind });
 }
 
-/** Permanently removes a target from the current workspace. */
-export async function deleteTarget(targetId: string, workspacePath?: string): Promise<void> {
-  return invoke('delete_target', { targetId, workspacePath });
+export async function previewTarget(rawToml: string): Promise<TargetPreview> {
+  if (shouldUseMockBackend()) {
+    return previewTargetMock(rawToml);
+  }
+  return invoke('preview_target', { rawToml });
 }
 
-/** Creates a copy of an existing target in the current workspace. */
-export async function duplicateTarget(
-  targetId: string,
-  workspacePath?: string,
-): Promise<TargetRecord> {
-  return invoke('duplicate_target', { targetId, workspacePath });
+export async function saveTarget(request: SaveTargetRequest): Promise<TargetMutationResult> {
+  if (shouldUseMockBackend()) {
+    return saveTargetMock(request);
+  }
+  return invoke('save_target', { request });
 }
 
-/** Inverts the enabled/disabled state of a given target. */
-export async function toggleTargetState(
-  targetId: string,
-  workspacePath?: string,
-): Promise<TargetRecord> {
-  return invoke('toggle_target', { targetId, workspacePath });
+export async function updateNotificationSettings(
+  settings: NotificationSettings,
+): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return updateNotificationSettingsMock(settings);
+  }
+  return invoke('update_notification_settings', { settings });
 }
 
-/** Lists run history visible in the current workspace. */
-export async function listRuns(workspacePath?: string): Promise<RunRecord[]> {
-  return invoke('list_runs', { workspacePath });
+export async function clearNotificationFeed(): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return clearNotificationFeedMock();
+  }
+  return invoke('clear_notification_feed');
 }
 
-/** Returns the persisted or derived detail for a selected run. */
-export async function getRunDetail(runId: string, workspacePath?: string): Promise<RunDetail> {
-  return invoke('get_run_detail', { runId, workspacePath });
+export async function deleteTarget(directoryName: string): Promise<WorkspaceSnapshot> {
+  if (shouldUseMockBackend()) {
+    return deleteTargetMock(directoryName);
+  }
+  return invoke('delete_target', { directoryName });
 }
 
-/** Returns diagnostics that explain the current runtime behavior. */
-export async function getWorkspaceDiagnostics(
-  workspacePath?: string,
-): Promise<WorkspaceDiagnostics> {
-  return invoke('get_workspace_diagnostics', { workspacePath });
+export async function runTarget(directoryName: string): Promise<TargetRunResult> {
+  if (shouldUseMockBackend()) {
+    return runTargetMock(directoryName);
+  }
+  return invoke('run_target', { directoryName });
 }
 
-/** Runs all targets through either live FFHN or the explicit mock fallback. */
-export async function runAllTargets(workspacePath?: string): Promise<RunRecord[]> {
-  return invoke('run_all_targets', { workspacePath });
+export async function runWorkspace(maxConcurrency?: number): Promise<BatchRunResult> {
+  if (shouldUseMockBackend()) {
+    return runWorkspaceMock();
+  }
+  return invoke('run_workspace', { maxConcurrency });
 }
 
-/** Runs a single target through either live FFHN or the explicit mock fallback. */
-export async function runTarget(targetId: string, workspacePath?: string): Promise<RunRecord> {
-  return invoke('run_target', { targetId, workspacePath });
+export async function openWorkspacePath(): Promise<void> {
+  if (shouldUseMockBackend()) {
+    return openWorkspacePathMock();
+  }
+  return invoke('open_workspace_path');
 }
 
-/** Returns desktop-local recently opened workspaces. */
-export async function listRecentWorkspaces(): Promise<RecentWorkspace[]> {
-  return invoke('list_recent_workspaces');
-}
-
-/** Opens the OS native explorer for the given path. */
-export async function openPath(path: string): Promise<void> {
-  return invoke('open_path', { path });
+export async function openTargetPath(directoryName: string): Promise<void> {
+  if (shouldUseMockBackend()) {
+    return openTargetPathMock(directoryName);
+  }
+  return invoke('open_target_path', { directoryName });
 }

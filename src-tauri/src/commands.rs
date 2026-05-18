@@ -1,130 +1,214 @@
-use tauri::State;
-use serde_json::Value;
-
-use crate::models::*;
 use crate::logic::*;
+use crate::models::*;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
-fn get_app_info() -> DesktopAppInfo {
-    get_app_info_state()
-}
-
-#[tauri::command]
-fn get_sidecar_health() -> SidecarHealth {
-    get_sidecar_health_state()
-}
-
-#[tauri::command]
-fn get_bundle_manifest() -> Result<BundleManifest, String> {
-    load_bundle_manifest().ok_or_else(|| "Missing vendor/bundle-manifest.json".to_string())
-}
-
-#[tauri::command]
-fn get_bundle_hydration_status() -> BundleHydrationStatus {
-    get_bundle_hydration_state()
-}
-
-#[tauri::command]
-fn get_runtime_readiness_status() -> RuntimeReadinessStatus {
-    get_runtime_readiness_state()
-}
-
-#[tauri::command]
-fn get_project_status() -> Result<ProjectStatus, String> {
-    get_project_status_state()
-}
-
-#[tauri::command]
-fn run_ffhn_probe() -> Result<ProbeResult, String> {
-    run_ffhn_probe_state()
-}
-
-#[tauri::command]
-fn open_path(path: String) -> Result<(), String> {
-    open_path_logic(path)
-}
-
-#[tauri::command]
-fn open_workspace(state: State<AppState>, workspace_path: Option<String>) -> WorkspaceSummary {
-    open_workspace_logic(&state, workspace_path)
-}
-
-#[tauri::command]
-fn create_workspace(state: State<AppState>, workspace_path: String) -> WorkspaceSummary {
-    open_workspace_logic(&state, Some(workspace_path))
-}
-
-#[tauri::command]
-fn create_target(target: TargetRecord, workspace_path: Option<String>) -> Result<(), String> {
-    create_target_logic(target, workspace_path)
-}
-
-#[tauri::command]
-fn delete_target(target_id: String, workspace_path: Option<String>) -> Result<(), String> {
-    delete_target_logic(target_id, workspace_path)
-}
-
-#[tauri::command]
-fn duplicate_target(
-    target_id: String,
-    workspace_path: Option<String>,
-) -> Result<TargetRecord, String> {
-    duplicate_target_logic(target_id, workspace_path)
-}
-
-#[tauri::command]
-fn toggle_target(
-    target_id: String,
-    workspace_path: Option<String>,
-) -> Result<TargetRecord, String> {
-    toggle_target_logic(target_id, workspace_path)
-}
-
-#[tauri::command]
-fn list_targets(workspace_path: Option<String>) -> Vec<TargetRecord> {
-    load_targets_from_workspace(&resolve_workspace_path(workspace_path))
-}
-
-#[tauri::command]
-fn list_runs(state: State<AppState>, workspace_path: Option<String>) -> Vec<RunRecord> {
-    let records = load_runs_from_workspace(&resolve_workspace_path(workspace_path));
-    let mut state_runs = state.runs.lock().unwrap();
-    *state_runs = records.clone();
-    records
-}
-
-#[tauri::command]
-fn get_run_detail(
+pub(crate) fn bootstrap(
+    app: AppHandle,
     state: State<AppState>,
-    run_id: String,
-    workspace_path: Option<String>,
-) -> Result<RunDetail, String> {
-    get_run_detail_logic(&state, run_id, workspace_path)
+) -> Result<DesktopBootstrap, String> {
+    bootstrap_logic(&app, &state)
 }
 
 #[tauri::command]
-fn get_workspace_diagnostics(workspace_path: Option<String>) -> WorkspaceDiagnostics {
-    get_workspace_diagnostics_state(workspace_path)
-}
-
-#[tauri::command]
-fn run_all_targets(
+pub(crate) fn open_workspace(
+    app: AppHandle,
     state: State<AppState>,
     workspace_path: Option<String>,
-) -> Result<Vec<RunRecord>, String> {
-    run_all_targets_logic(&state, workspace_path)
+) -> Result<WorkspaceSnapshot, String> {
+    open_workspace_logic(&app, &state, workspace_path)
 }
 
 #[tauri::command]
-fn run_target(
+pub(crate) fn refresh_workspace(
+    app: AppHandle,
     state: State<AppState>,
-    target_id: String,
-    workspace_path: Option<String>,
-) -> Result<RunRecord, String> {
-    run_target_logic(&state, target_id, workspace_path)
+) -> Result<WorkspaceSnapshot, String> {
+    refresh_workspace_logic(&app, &state)
 }
 
 #[tauri::command]
-fn list_recent_workspaces(state: State<AppState>) -> Vec<RecentWorkspace> {
-    list_recent_workspaces_logic(&state)
+pub(crate) fn create_workspace(
+    app: AppHandle,
+    state: State<AppState>,
+    workspace_path: String,
+) -> Result<WorkspaceSnapshot, String> {
+    create_workspace_logic(&app, &state, workspace_path)
+}
+
+#[tauri::command]
+pub(crate) fn read_target(
+    app: AppHandle,
+    state: State<AppState>,
+    directory_name: String,
+) -> Result<TargetDocumentRecord, String> {
+    read_target_logic(&app, &state, directory_name)
+}
+
+#[tauri::command]
+pub(crate) fn get_target_template(kind: String) -> Result<TargetTemplate, String> {
+    get_target_template_logic(kind)
+}
+
+#[tauri::command]
+pub(crate) async fn preview_target(raw_toml: String) -> Result<TargetPreview, String> {
+    tauri::async_runtime::spawn_blocking(move || preview_target_logic(raw_toml))
+        .await
+        .map_err(|error| format!("Preview task failed: {error}"))?
+}
+
+#[tauri::command]
+pub(crate) fn save_target(
+    app: AppHandle,
+    state: State<AppState>,
+    request: TargetSaveRequest,
+) -> Result<TargetMutationResult, String> {
+    save_target_logic(&app, &state, request)
+}
+
+#[tauri::command]
+pub(crate) fn update_notification_settings(
+    app: AppHandle,
+    state: State<AppState>,
+    settings: NotificationSettings,
+) -> Result<WorkspaceSnapshot, String> {
+    update_notification_settings_logic(&app, &state, settings)?;
+    refresh_workspace_logic(&app, &state)
+}
+
+#[tauri::command]
+pub(crate) fn clear_notification_feed(
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<WorkspaceSnapshot, String> {
+    clear_notification_feed_logic(&app, &state)?;
+    refresh_workspace_logic(&app, &state)
+}
+
+#[tauri::command]
+pub(crate) fn delete_target(
+    app: AppHandle,
+    state: State<AppState>,
+    directory_name: String,
+) -> Result<WorkspaceSnapshot, String> {
+    delete_target_logic(&app, &state, directory_name)
+}
+
+#[tauri::command]
+pub(crate) async fn run_target(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    directory_name: String,
+) -> Result<TargetRunResult, String> {
+    let workspace = current_workspace(&app, &state)?;
+    let workspace_path = workspace.path.clone();
+    let directory_name_for_run = directory_name.clone();
+    let run_result = tauri::async_runtime::spawn_blocking(move || {
+        execute_target_run(&workspace_path, &directory_name_for_run)
+    })
+    .await
+    .map_err(|error| format!("Run task failed: {error}"))?;
+
+    let workspace_snapshot = workspace_snapshot(&app, &workspace)?;
+
+    match run_result {
+        Ok((status_report, run_report)) => {
+            let notification = log_notification_failure(record_target_run_notification(
+                &app,
+                &state,
+                &workspace_snapshot,
+                &directory_name,
+                &run_report,
+            ));
+
+            Ok(TargetRunResult {
+                workspace: workspace_snapshot,
+                directory_name,
+                status_report,
+                run_report,
+                notification,
+            })
+        }
+        Err(error) => {
+            log_notification_failure(record_target_run_failure_notification(
+                &app,
+                &state,
+                &workspace_snapshot,
+                &directory_name,
+                error.as_str(),
+            ));
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn run_workspace(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    max_concurrency: Option<usize>,
+) -> Result<BatchRunResult, String> {
+    let workspace = current_workspace(&app, &state)?;
+    let workspace_path = workspace.path.clone();
+    let batch_result = tauri::async_runtime::spawn_blocking(move || {
+        execute_workspace_run(&workspace_path, max_concurrency)
+    })
+    .await
+    .map_err(|error| format!("Batch run task failed: {error}"))?;
+
+    let workspace_snapshot = workspace_snapshot(&app, &workspace)?;
+
+    match batch_result {
+        Ok((batch_report, skipped_directories)) => {
+            let notification = log_notification_failure(record_workspace_run_notification(
+                &app,
+                &state,
+                &workspace_snapshot,
+                &batch_report,
+                &skipped_directories,
+            ));
+
+            Ok(BatchRunResult {
+                workspace: workspace_snapshot,
+                batch_report,
+                skipped_directories,
+                notification,
+            })
+        }
+        Err(error) => {
+            log_notification_failure(record_workspace_run_failure_notification(
+                &app,
+                &state,
+                &workspace_snapshot,
+                error.as_str(),
+            ));
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) fn open_workspace_path(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    open_workspace_path_logic(&app, &state)
+}
+
+#[tauri::command]
+pub(crate) fn open_target_path(
+    app: AppHandle,
+    state: State<AppState>,
+    directory_name: String,
+) -> Result<(), String> {
+    open_target_path_logic(&app, &state, directory_name)
+}
+
+fn log_notification_failure(
+    notification: Result<Option<NotificationRecord>, String>,
+) -> Option<NotificationRecord> {
+    match notification {
+        Ok(record) => record,
+        Err(error) => {
+            eprintln!("notification workflow degraded: {error}");
+            None
+        }
+    }
 }

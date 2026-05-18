@@ -1,10 +1,23 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import istanbul from 'vite-plugin-istanbul';
+import { managedDistRoot } from './scripts/lib/artifact-roots.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
+const buildTarget = 'es2020';
+const coverageEnabled = process.env.VITE_COVERAGE === 'true';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    istanbul({
+      include: ['src/**/*'],
+      exclude: ['tests/**', 'src/types.ts'],
+      requireEnv: true,
+      checkProd: true,
+      forceBuildInstrument: false,
+    }),
+  ],
   clearScreen: false,
   server: {
     host: host || false,
@@ -24,8 +37,10 @@ export default defineConfig({
     },
   },
   build: {
+    emptyOutDir: true,
     minify: process.env.TAURI_DEBUG ? false : 'esbuild',
-    sourcemap: Boolean(process.env.TAURI_DEBUG),
-    target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    outDir: managedDistRoot(),
+    sourcemap: coverageEnabled || Boolean(process.env.TAURI_DEBUG),
+    target: buildTarget,
   },
 });

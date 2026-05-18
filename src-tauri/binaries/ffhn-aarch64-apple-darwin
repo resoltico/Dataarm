@@ -1,2 +1,0 @@
-#!/bin/bash
-echo "{\"ok\": true, \"command\": \"$1\", \"mode\": \"live-mock\"}"

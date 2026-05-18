@@ -1,9 +1,0 @@
-{
-  "id": "run-002",
-  "targetId": "homepage-availability",
-  "status": "changed",
-  "startedAt": "2026-03-29T09:40:00Z",
-  "finishedAt": "2026-03-29T09:40:03Z",
-  "summary": "Availability text changed.",
-  "mode": "mock"
-}

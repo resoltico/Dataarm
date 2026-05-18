@@ -5,10 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-18
+
 ### Added
 
-- Added a public-repository release baseline: MIT licensing, a committed changelog, and a GitHub-first desktop release protocol.
-
-### Changed
-
-- Maintainer release posture now assumes protected `main`, automatic deletion of merged release branches, and verified GitHub Actions artifact handoff for unsigned macOS packaging.
+- Initial release.

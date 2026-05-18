@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "current": "version-contract-wired",
+  "version": "0.1.0",
+  "packageName": "dataarm",
+  "displayName": "Dataarm",
+  "consumers": [
+    "package.json",
+    "package-lock.json",
+    "src-tauri/Cargo.toml",
+    "src-tauri/tauri.conf.json",
+    "src/lib/appVersion.ts"
+  ],
+  "note": "This file is the canonical desktop product version source. Change the version here, run npm run sync:app-version, and let npm run verify:app-version fail if any consumer drifts."
+}

@@ -1,18 +1,42 @@
 {
   "schemaVersion": 1,
   "current": "unsigned-apple-silicon-dmg-wired",
-  "displayAppName": "FFHN",
-  "internalDesktopPackageName": "ffhn-desktop",
-  "bundleIdentifier": "com.resoltico.ffhn",
+  "displayAppName": "Dataarm",
+  "internalDesktopPackageName": "dataarm",
+  "bundleIdentifier": "com.resoltico.dataarm",
   "macosTarget": "aarch64-apple-darwin",
-  "localOutputDirectory": "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg",
+  "localAppBundleDirectory": "../.dataarm-artifacts/target/aarch64-apple-darwin/release/bundle/macos/Dataarm.app",
+  "localOutputDirectory": "../.dataarm-artifacts/target/aarch64-apple-darwin/release/bundle/dmg",
+  "appBundleLegalDirectory": "Contents/SharedSupport/Legal",
+  "bundledLegalFiles": [
+    {
+      "bundlePath": "Contents/SharedSupport/Legal/LICENSE",
+      "sourcePath": "../LICENSE"
+    },
+    {
+      "bundlePath": "Contents/SharedSupport/Legal/NOTICE",
+      "sourcePath": "../NOTICE"
+    },
+    {
+      "bundlePath": "Contents/SharedSupport/Legal/PATENTS.md",
+      "sourcePath": "../PATENTS.md"
+    },
+    {
+      "bundlePath": "Contents/SharedSupport/Legal/Cargo.lock",
+      "sourcePath": "./Cargo.lock"
+    },
+    {
+      "bundlePath": "Contents/SharedSupport/Legal/package-lock.json",
+      "sourcePath": "../package-lock.json"
+    }
+  ],
   "bundles": ["app", "dmg"],
   "buildScript": "npm run tauri:build:dmg:macos-silicon",
   "githubWorkflow": ".github/workflows/package-unsigned-macos.yml",
   "githubRunner": "macos-15",
-  "githubArtifactName": "ffhn-unsigned-macos-apple-silicon-dmg",
-  "githubArtifactManifest": "src-tauri/target/ci-artifacts/github-packaging-manifest.json",
+  "githubArtifactName": "dataarm-unsigned-macos-apple-silicon-dmg",
+  "githubArtifactManifest": "../.dataarm-artifacts/ci-artifacts/github-packaging-manifest.json",
   "signing": "disabled",
   "notarization": "disabled",
-  "note": "DMG packaging is intentionally wired only for Apple Silicon macOS builds. GitHub packaging stays unsigned and unnotarized until a future release lane wires Apple signing material."
+  "note": "DMG packaging is intentionally wired only for Apple Silicon macOS builds. package-unsigned-macos.yml is now the manual packaging smoke lane, while release.yml owns the public GitHub release object. Packaging stays unsigned and unnotarized until a future signing lane is wired deliberately. The shipped app bundle must carry its legal surface under Contents/SharedSupport/Legal so release binaries include the project license, dependency notice posture, patent notes, and exact dependency lockfiles."
 }

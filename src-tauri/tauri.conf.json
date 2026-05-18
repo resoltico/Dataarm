@@ -1,32 +1,77 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "FFHN",
-  "version": "0.16.1",
-  "identifier": "com.resoltico.ffhn",
+  "productName": "Dataarm",
+  "version": "0.1.0",
+  "identifier": "com.resoltico.dataarm",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../dist"
+    "frontendDist": "../../.dataarm-artifacts/dist"
   },
   "app": {
     "windows": [
       {
-        "title": "FFHN",
+        "label": "main",
+        "title": "Dataarm",
         "width": 1400,
         "height": 940,
-        "resizable": true
+        "resizable": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": ["'self'", "customprotocol:"],
+        "connect-src": ["'self'", "ipc:", "http://ipc.localhost"],
+        "img-src": ["'self'", "data:", "blob:"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "font-src": ["'self'", "data:"],
+        "object-src": ["'none'"],
+        "base-uri": ["'none'"],
+        "form-action": ["'none'"],
+        "frame-ancestors": ["'none'"]
+      },
+      "devCsp": {
+        "default-src": [
+          "'self'",
+          "customprotocol:",
+          "http://localhost:1420",
+          "http://127.0.0.1:1420",
+          "ws://localhost:1421",
+          "ws://127.0.0.1:1421"
+        ],
+        "connect-src": [
+          "'self'",
+          "ipc:",
+          "http://ipc.localhost",
+          "http://localhost:1420",
+          "http://127.0.0.1:1420",
+          "ws://localhost:1421",
+          "ws://127.0.0.1:1421"
+        ],
+        "img-src": ["'self'", "data:", "blob:"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "font-src": ["'self'", "data:"],
+        "object-src": ["'none'"],
+        "base-uri": ["'none'"],
+        "form-action": ["'none'"],
+        "frame-ancestors": ["'none'"]
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
-    "externalBin": ["binaries/ffhn", "binaries/htmlcut"],
     "macOS": {
+      "files": {
+        "SharedSupport/Legal/LICENSE": "../LICENSE",
+        "SharedSupport/Legal/NOTICE": "../NOTICE",
+        "SharedSupport/Legal/PATENTS.md": "../PATENTS.md",
+        "SharedSupport/Legal/Cargo.lock": "./Cargo.lock",
+        "SharedSupport/Legal/package-lock.json": "../package-lock.json"
+      },
       "dmg": {
         "windowSize": {
           "width": 660,

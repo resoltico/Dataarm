@@ -1,56 +1,59 @@
 # Tests
 
-## End-to-End GUI Tests (Playwright)
+## End-to-End GUI Tests
 
-The `tests/e2e/` directory contains Playwright tests that run against the Vite dev server.
-Tests operate against **Mock mode** — no real `ffhn` or `htmlcut` binaries are required.
+`tests/e2e/` contains Playwright tests that run against the Vite dev server and the browser mock backend. No native sidecars or sibling repositories are required.
 
 ### First-time setup
-
-Install Playwright browsers once per machine:
 
 ```bash
 npx playwright install --with-deps
 ```
 
-### Run the tests
+### Run the maintained lane
 
 ```bash
 npm run test:e2e
 ```
 
-### What is tested
+The maintained command clears disposable output before the run, executes the browser workbench against an instrumented Vite dev server, and verifies artifact hygiene afterward. Playwright reports, raw results, and browser coverage reports are written under `../.dataarm-artifacts/`.
 
-| Test            | Coverage                                                                            |
-| --------------- | ----------------------------------------------------------------------------------- |
-| Dashboard loads | Execution mode banner, Hero heading, App Info and Sidecar Health panels are visible |
-| Target creation | "Add target" opens the editor; Cancel returns to the main view                      |
+`npm run verify:frontend-coverage` then enforces the frontend `100%` line and `100%` branch contract from the maintained unit/component lane and confirms the Playwright run captured instrumented runtime files.
 
-Tests are intentionally scoped to structural UI invariants in Mock mode.
-They verify that the GUI shell renders correctly and that primary interaction
-paths (target rail, editor toggle) function without regression.
+### Browser workbench matrix
 
-### Adding tests
+| Scenario                     | Coverage                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| Dashboard bootstrap          | embedded workbench shell, watch-root inventory, summary panel, and primary actions        |
+| HTTP template preview        | new target template loading, raw TOML editor, and preview report rendering                |
+| Draft truth                  | new-target draft context, selection honesty, and durable-run disablement                  |
+| Unsaved-work guard           | editor dirty state and protection against stale target or workspace runs                  |
+| Draft discard prompt         | confirmation flow before abandoning an untouched new-target draft                         |
+| Workspace batch run          | batch-run action, completion feedback, and canonical batch report rendering               |
+| Notification policy          | alert policy updates, delivery-channel changes, delivery history, and history clearing    |
+| Workspace create and recents | user watch-root creation, save-run feedback, and switching back through recent workspaces |
+| Target deletion              | destructive confirmation and post-delete empty-workspace state                            |
+| Desktop viewport fit         | no page scrolling, usable target list height, and usable editor height                    |
+| Live-browser width fit       | short-height desktop composition with visible recents and stable two-column workbench     |
 
-When adding new tests, prefer this order of scope:
+## Rust Tests
 
-1. Core UI structure and navigation paths (Mock mode, no binaries)
-2. Interaction flows that drive the `useDashboardState` hook (still Mock mode)
-3. Live sidecar integration paths — set `FFHN_DESKTOP_FFHN_BIN` and `FFHN_DESKTOP_HTMLCUT_BIN` in the test environment
-
-### CI
-
-Playwright runs as part of the `quality-gates` CI workflow after `npm run quality:node`.
-See `.github/workflows/quality-gates.yml`.
-
----
-
-## Rust Unit Tests
-
-Rust tests live alongside their source in `src-tauri/src/` and are run by:
+Rust tests live next to the backend code in `src-tauri/src/` and are exercised by:
 
 ```bash
-npm run quality:rust     # includes `cargo test --all-features`
+npm run quality:rust
 ```
 
-See [docs/developer-guide.md](../docs/developer-guide.md) for the full QA gate reference.
+That lane includes formatting, clippy, `cargo check`, `cargo test`, `cargo deny`, spell checking, and hygiene verification.
+
+### Native backend matrix
+
+| Scenario                     | Coverage                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Target save cleanup          | stale `state.json`, `last_run.json`, locks, and snapshots are cleared before a rewritten target becomes durable |
+| Target create and rename     | canonical `target.toml` persistence, directory rename behavior, and duplicate-destination rejection             |
+| Notification policy engine   | eligible run outcomes, delivery-channel selection, denied-system fallback, and workspace-skip escalation        |
+| HTTP preview fixture         | real `ffhn-core` dry-run preview against a local HTTP fixture server                                            |
+| File target run              | persisted status and run artifacts after a real live run in a temporary watch root                              |
+| Workspace batch run          | multi-target live batch execution against a temporary watch root                                                |
+| Workspace boundary hardening | direct-child validation and traversal rejection for target-directory resolution                                 |

@@ -1,34 +1,58 @@
 {
   "schemaVersion": 1,
   "current": "tooling-refresh-applied",
-  "asOfDate": "2026-03-30",
+  "asOfDate": "2026-05-18",
+  "rust": {
+    "stableToolchain": "1.95.0",
+    "edition": "2024",
+    "rustVersion": "1.95",
+    "cargoTargetDir": "../.dataarm-artifacts/target",
+    "cargoBuildDir": "../.dataarm-artifacts/build"
+  },
   "jsRuntime": {
-    "recommendedNode": "24.14.1",
-    "policy": "Active LTS baseline for desktop development and packaging"
+    "manager": "mise",
+    "recommendedNode": "26.1.0",
+    "recommendedNpm": "11.13.0",
+    "policy": "Pinned current runtime for desktop development, CI, and packaging"
   },
   "frontend": {
-    "react": "19.2.4",
-    "reactDom": "19.2.4",
-    "vite": "8.0.3",
-    "viteReactPlugin": "6.0.1",
-    "esbuild": "0.27.4",
-    "typescript": "5.9.3",
+    "react": "19.2.6",
+    "reactDom": "19.2.6",
+    "vite": "8.0.13",
+    "viteBuildTarget": "es2020",
+    "viteReactPlugin": "6.0.2",
+    "esbuild": "0.28.0",
+    "typescript": "6.0.3",
     "typesReact": "19.2.14",
     "typesReactDom": "19.2.3",
-    "typesNode": "24.12.0",
-    "eslint": "9.39.4",
-    "prettier": "3.8.1"
+    "typesNode": "25.8.0",
+    "eslint": "10.4.0",
+    "eslintJs": "10.0.1",
+    "istanbulLibCoverage": "3.2.2",
+    "istanbulLibReport": "3.0.1",
+    "istanbulReports": "3.2.0",
+    "playwright": "1.60.0",
+    "testingLibraryReact": "16.3.2",
+    "vitestCoverageIstanbul": "4.1.6",
+    "vitest": "4.1.6",
+    "jsdom": "29.1.1",
+    "prettier": "3.8.3"
   },
   "tauri": {
-    "api": "2.10.1",
-    "cli": "2.10.1",
-    "rustCore": "2.10.3",
-    "rustBuild": "2.5.6"
+    "api": "2.11.0",
+    "cli": "2.11.2",
+    "rustCore": "2.11.1",
+    "rustBuild": "2.6.1"
   },
   "notes": [
-    "Declared manifests were updated to current stable versions as of 2026-03-30.",
-    "TypeScript remains on the latest 5.x line because the current stable typescript-eslint release does not yet accept TypeScript 6.",
-    "The archive still does not claim that real upstream ffhn and htmlcut binaries are bundled.",
-    "The runtime contract remains GUI -> ffhn -> htmlcut; this is a toolchain refresh, not a product-boundary change."
+    "Declared manifests were updated to current stable versions as of 2026-05-18.",
+    "The repo now uses .mise.toml as the canonical Node runtime pin and no longer carries duplicate .nvmrc or .node-version files.",
+    "The runtime contract is embedded GUI -> ffhn-core -> htmlcut-core rather than a bundled sidecar chain.",
+    "Cargo build output is intentionally redirected into managed sibling artifact roots so repository-local target trees do not accumulate.",
+    "The Tauri and Vite baselines were advanced to remove known dependency advisories rather than carrying deny or audit exceptions for fixable upstream releases.",
+    "The lint baseline now uses ESLint flat config in typed strict mode plus explicit runtime-safety rules such as eqeqeq, curly, no-var, prefer-const, and no-debugger.",
+    "The browser workbench lane instruments Vite only during Playwright runs and must capture live runtime files from the maintained GUI scenarios.",
+    "The frontend test posture is intentionally split between a Vitest unit/component lane for render-state permutations and a Playwright lane for real operator flows; the final coverage verifier enforces 100% line and branch coverage from the unit lane while still requiring Playwright instrumentation evidence.",
+    "The Vite desktop bundle target is now a desktop runtime floor (`es2020`) rather than legacy browser-brand targets, because the app ships inside Tauri WebViews instead of the public web."
   ]
 }
