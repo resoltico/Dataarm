@@ -4,6 +4,14 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const strictRuntimeRules = {
+  curly: ['error', 'all'],
+  eqeqeq: ['error', 'always', { null: 'ignore' }],
+  'no-debugger': 'error',
+  'no-var': 'error',
+  'prefer-const': 'error',
+};
+
 const typeCheckedConfigs = tseslint.configs.strictTypeChecked.map((config) => ({
   ...config,
   files: ['**/*.{ts,tsx,mts,cts}'],
@@ -11,18 +19,7 @@ const typeCheckedConfigs = tseslint.configs.strictTypeChecked.map((config) => ({
 
 export default tseslint.config(
   {
-    ignores: [
-      '.DS_Store',
-      '*.tsbuildinfo',
-      '**/src-tauri/target/**',
-      'coverage/**',
-      'dist/**',
-      'node_modules/**',
-      'playwright-report/**',
-      'src-tauri/target/**',
-      'test-results/**',
-      'vendor/**',
-    ],
+    ignores: ['.DS_Store', '*.tsbuildinfo', 'coverage/**', 'node_modules/**', 'vendor/**'],
     linterOptions: {
       reportUnusedDisableDirectives: 'error',
     },
@@ -38,6 +35,7 @@ export default tseslint.config(
       },
     },
     rules: {
+      ...strictRuntimeRules,
       'no-console': 'off',
     },
   },
@@ -47,11 +45,17 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 'latest',
       parserOptions: {
-        projectService: true,
+        project: [
+          './tsconfig.app.json',
+          './tsconfig.node.json',
+          './tsconfig.tests.json',
+          './tsconfig.eslint.json',
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
+      ...strictRuntimeRules,
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': [

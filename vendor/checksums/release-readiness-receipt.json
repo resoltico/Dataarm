@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "targetTriple": "aarch64-apple-darwin",
-  "receiptType": "release-readiness-placeholder",
-  "status": "placeholder",
-  "note": "Replace with a real Apple Silicon release-readiness receipt after exact upstream sidecar insertion, verification, packaged execution proof, and release-candidate validation."
-}

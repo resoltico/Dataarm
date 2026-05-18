@@ -1,20 +1,23 @@
 # src-tauri
 
-This is the native Tauri package for the desktop app.
-`src-tauri` is the conventional directory name used by Tauri for the Rust side of a split web-plus-native project.
+This is the native Tauri package for Dataarm.
 
 ## Contents
 
-- `Cargo.toml` and `Cargo.lock` — Rust package manifest and lockfile
-- `src/` — native entrypoint and Rust command layer
-- `tauri.conf.json` — app and bundling configuration
-- `build.rs` — Rust build hook
-- `capabilities/` and `icons/` — Tauri-native assets
-- `binaries/` — sidecar bundle inputs
+- `Cargo.toml` and `Cargo.lock` — native package manifest and lockfile
+- `src/` — Tauri entrypoint, commands, models, and embedded-runtime logic
+- `tauri.conf.json` — native app and packaging contract
+- `build.rs` — Tauri build hook
+- `capabilities/` and `icons/` — native assets and permission surface
 
-## Generated output
+There is no `binaries/` directory in the maintained runtime shape. The desktop no longer bundles `ffhn` or `htmlcut` executables as sidecars.
 
-- `gen/` — generated schema output
-- `target/` — Cargo and Tauri build output, including local `.app` and `.dmg` artifacts
+## Generated Output
 
-Keep generated output disposable and keep source-of-truth project docs outside this directory unless they are specifically native-side concerns.
+- `gen/` — framework-generated Tauri schema output
+- `../.dataarm-artifacts/target/` — Cargo and Tauri target output, including `.app` and `.dmg` artifacts
+- `../.dataarm-artifacts/build/` — Rust compiler build cache
+
+Repo-local `target/` is hygiene debt when populated.
+
+See [docs/hygiene.md](../docs/hygiene.md) for the maintained artifact policy.

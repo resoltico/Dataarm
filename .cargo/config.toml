@@ -1,0 +1,3 @@
+[build]
+target-dir = "../.dataarm-artifacts/target"
+build-dir = "../.dataarm-artifacts/build"

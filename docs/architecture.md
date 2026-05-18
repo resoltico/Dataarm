@@ -1,195 +1,166 @@
 # Architecture
 
-## Core Rule
+## Runtime Contract
 
-`ffhn-desktop` is not a second implementation of FFHN.
-It is a strict wrapper that provides an operator GUI for the FFHN CLI engine.
-
-The desktop must never re-implement any extraction, orchestration, or validation
-logic that `ffhn` already owns.
-
----
-
-## Runtime Call Graph
+Dataarm is an embedded operator client, not a second extraction engine.
+The runtime call graph is:
 
 ```text
-┌─────────────────────┐
-│   ffhn-desktop      │  React/Tauri GUI — operator interface
-│   (this repo)       │
-└────────┬────────────┘
-         │  Tauri IPC → #[tauri::command]
-         ▼
-┌─────────────────────┐
-│   Rust backend      │  commands.rs / logic.rs — orchestration, I/O, state
-│   (src-tauri/src/)  │
-└────────┬────────────┘
-         │  std::process::Command::new(ffhn) with args + env
-         ▼
-┌─────────────────────┐
-│   ffhn              │  Authoritative CLI engine — targets, runs, validation
-│   (sibling repo)    │
-└────────┬────────────┘
-         │  subprocess (managed by ffhn, not by the desktop)
-         ▼
-┌─────────────────────┐
-│   htmlcut           │  HTML parsing utility
-│   (sibling repo)    │
-└─────────────────────┘
+React UI  ->  Tauri commands  ->  ffhn-core  ->  htmlcut-core
 ```
 
-**The desktop only ever calls `ffhn`.** It never calls `htmlcut` directly.
-`ffhn` is solely responsible for invoking `htmlcut`.
+The desktop owns:
 
----
+- operator flow
+- workspace selection
+- local shell integration
+- packaging
+- presentation of canonical runtime artifacts
 
-## Repository Boundaries
+The desktop does not own:
 
-| Repository     | Role        | Who calls it                       |
-| -------------- | ----------- | ---------------------------------- |
-| `ffhn-desktop` | GUI wrapper | end users / operators              |
-| `ffhn`         | CLI engine  | `ffhn-desktop` (via Tauri command) |
-| `htmlcut`      | HTML parser | `ffhn` (via subprocess)            |
+- target parsing rules
+- extraction rules
+- baseline calculation
+- run orchestration semantics
+- HTMLCut-specific engine behavior
 
-The three repositories are developed independently and never directly import
-each other's source code. They integrate exclusively through compiled binary
-execution at runtime.
-
----
+The embedded runtime line is now the released `ffhn-core v8.0.0` contract with no downstream selector-stack override. [vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the canonical machine-readable record of that intake policy.
 
 ## Source Layout
 
-### Frontend (`src/`)
+### Frontend
 
-Responsible for operator workflow, state presentation, and user interaction.
-The frontend makes Tauri IPC calls and renders what the backend returns.
+`src/` holds the React workbench:
 
-```
-src/
-  hooks/
-    useDashboardState.ts    ← single source of truth for all UI state
-  components/
-    layout/
-      Hero.tsx              ← top-level header + primary action buttons
-      Sidebar.tsx           ← left rail: target list, recent workspaces, priorities
-      MainDashboard.tsx     ← main content: all data panels and detail views
-    dashboard/
-      TargetEditor.tsx      ← target creation form
-    KeyValueTable.tsx       ← generic key/value display primitive
-    SectionCard.tsx         ← generic card container with optional title/actions
-    StatusPill.tsx          ← status label component
-  App.tsx                   ← root: wires useDashboardState into the three layout components
-  styles.css                ← design system; adapts to system light/dark mode via prefers-color-scheme
-```
+- `App.tsx` wires the application shell together
+- `hooks/useDashboardState.ts` owns frontend state, async actions, and Tauri API calls
+- `components/layout/` renders the shell, workspace rail, and main dashboard panes
+- `components/dashboard/TargetTable.tsx` is the canonical desktop target inventory surface
+- `components/dashboard/DetailPanel.tsx` owns target history, compare-diff browsing, and artifact inspection
+- `components/dashboard/TargetEditor.tsx` renders raw `target.toml` editing and action controls
+- `lib/api.ts` is the canonical frontend-to-backend contract surface
+- `lib/mockDesktop.ts` provides a browser-safe mock backend for Vite and Playwright
+- `lib/presentation.ts` holds pure formatting and presentation helpers
 
-**Design invariant:** Layout components (`Hero`, `Sidebar`, `MainDashboard`) are presentation-only.
-They receive state and callbacks as props from `App.tsx`. They contain no business logic and
-make no direct Tauri calls. All Tauri calls are isolated inside `useDashboardState.ts`.
+Frontend components are presentation-only. They do not invoke Tauri directly.
 
-### Tauri / Rust Backend (`src-tauri/src/`)
+### Native Backend
 
-```
-src-tauri/src/
-  main.rs         ← Tauri builder: registers AppState, wires all command handlers
-  models.rs       ← typed data schemas shared across the backend (serialised to/from JSON for IPC)
-  commands.rs     ← exclusive Tauri command surface; each fn is annotated #[tauri::command]
-  logic.rs        ← all logic, I/O, binary resolution, workspace management, sidecar execution
-```
+`src-tauri/src/` holds the native desktop layer:
 
-**Design invariant:** `commands.rs` is a pure routing layer. It delegates immediately to `logic.rs`
-and must not contain business logic. `logic.rs` must not contain Tauri-specific code.
+- `main.rs` wires the Tauri application and registers commands
+- `commands.rs` is a thin IPC surface
+- `models.rs` defines serialized data contracts returned to the frontend
+- `logic/workspace.rs` owns workspace discovery, recent workspace persistence, and demo watch-root materialization
+- `logic/targets.rs` owns target reading, preview, save, delete, and run operations through `ffhn-core`
+- `logic/runtime_artifacts.rs` owns typed loading of canonical runtime snapshot artifacts for history and diff browsing
+- `logic/notifications.rs` owns notification policy, delivery history, and native system-delivery attempts
+- `logic/os.rs` owns native path-opening helpers
 
-### Vendor (`vendor/`)
+The command layer routes requests. The `logic/` modules own the behavior.
 
-JSON contracts that define the desktop's relationship to its upstream sidecars:
+## State Ownership
 
-```
-vendor/
-  bundle-manifest.json      ← pinned upstream refs (repo URLs, refs, version labels)
-  dmg-packaging.json        ← packaging target, bundle IDs, signing posture
-```
+The watch root on disk is the authoritative source of truth.
 
-These files are the source of truth read by both the Rust backend and the `verify:*` scripts.
+For each target directory, the desktop treats these files as canonical:
 
----
+- `target.toml`
+- `state.json`
+- `last_run.json`
+- `snapshots/`
 
-## Sidecar Binary Resolution
+The backend derives UI-facing summaries from those files plus the canonical `ffhn-core` status and run reports. The frontend caches the returned snapshot, but it does not become a second source of truth.
 
-At startup, `logic.rs` determines which binaries to use via the following precedence chain:
+The desktop also owns one explicit runtime-artifact adapter over those canonical files. Target detail loading reads `state.json`, `last_run.json`, and retained snapshot artifacts into one typed desktop contract instead of letting multiple frontend surfaces infer raw filesystem structure independently.
 
-```
-1. FFHN_DESKTOP_FFHN_BIN env var         ← highest priority
-   FFHN_DESKTOP_HTMLCUT_BIN env var
-   (both must be set and point to existing files)
+The backend also owns the active workspace boundary. The frontend may request a workspace switch, but target reads, saves, runs, deletes, and path-opening actions execute against the backend-managed current workspace rather than trusting raw watch-root paths from the WebView.
 
-2. src-tauri/binaries/ffhn-<target>      ← bundled candidate
-   src-tauri/binaries/htmlcut-<target>
-   (files must exist and be executable)
+Important notifications are also backend-owned. The desktop persists one notification policy and one recent alert history under app-local desktop state, then derives delivery decisions from authoritative run outcomes instead of letting the frontend guess what is noteworthy.
 
-3. Mock fallback                         ← lowest priority
-   (all runs are simulated; no real execution occurs)
-```
+Saving a target is intentionally destructive to stale runtime artifacts. After a successful save, the backend removes:
 
-The resolved source is reported in the UI as `runtime_source`:
+- `state.json`
+- `last_run.json`
+- `snapshots/`
 
-- `env-override` — both env vars satisfied
-- `bundled-candidate` — bundled executables found and usable
-- `path-hint` — path hints exist but binaries are not executable on this host
-- `none` — mock
+That reset keeps the next execution aligned with the edited target definition.
 
-The reported `execution_mode` derives from the above:
+## Demo And Mock Paths
 
-- `sidecar-live` — an executable binary pair is available from any source
-- `sidecar-ready` — path hints exist but no executable pair
-- `mock` — no real binaries available
+The repository supports two low-friction development paths:
 
-### `htmlcut` Path Injection
+- Tauri demo workspace: `workspace.rs` materializes a local demo watch root under app data and drives the real native backend.
+- Browser mock backend: `src/lib/mockDesktop.ts` lets Vite and Playwright exercise the workbench without a native host.
 
-When invoking `ffhn`, the desktop passes the absolute path of the bundled `htmlcut`
-binary down to `ffhn` via the `FFHN_DESKTOP_HTMLCUT_BIN` environment variable.
-This ensures `ffhn` uses the exact same `htmlcut` version that the desktop bundled,
-rather than any version that may exist on the user's ambient `PATH`.
+These paths exist to accelerate UI work. They do not replace the embedded runtime contract.
 
-The user's shell `PATH` is never passed through to the sidecar subprocess.
+## Upstream Runtime Intake
 
----
+`src-tauri/Cargo.toml` is the canonical code owner for the embedded `ffhn-core` dependency declaration. [vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the machine-readable policy owner for:
 
-## Execution Posture
+- which released `ffhn-core` line the desktop currently embeds
+- the desktop-owned Miri seam
+- whether the current embedded runtime line allows any downstream dependency overrides
 
-| Context                       | Behaviour                                                            |
-| ----------------------------- | -------------------------------------------------------------------- |
-| Fresh checkout (no binaries)  | Mock mode — UI fully functional, runs are simulated                  |
-| After `npm run sync-sidecars` | `sidecar-live` — real `ffhn` execution                               |
-| CI headless tests             | Mock mode (no binaries present in CI unless explicitly injected)     |
-| Production DMG                | Bundled binaries in `src-tauri/binaries/` — `sidecar-live` mandatory |
+That split keeps dependency declaration and dependency policy separate without duplicating either one in prose-only docs.
 
----
+## Packaging Boundary
 
-## State Management
+The desktop ships one native application bundle. There is no sidecar intake, no bundled `ffhn` binary, and no bundled `htmlcut` binary.
 
-All application state is centralised in `useDashboardState.ts`.
-This hook:
+`src-tauri/tauri.conf.json` is the native packaging contract:
 
-- Owns the bootstrap loading sequence (called once on mount)
-- Exposes strongly-typed async handlers for every user action
-- Returns a flat state object consumed by the three layout components
+- managed frontend output comes from `../.dataarm-artifacts/dist`
+- the main window label is explicitly `main`
+- production and development CSP policies are declared
+- Apple Silicon macOS packaging targets are `app` and `dmg`
 
-No state lives in individual components. No Tauri calls are made from JSX.
+## Version Contract
 
----
+[vendor/app-version.json](../vendor/app-version.json) is the canonical product-version source for Dataarm.
 
-## Compilation Profiles
+Derived consumers must stay synchronized through:
 
-```toml
-# src-tauri/Cargo.toml
+- `package.json`
+- `package-lock.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/tauri.conf.json`
+- `src/lib/appVersion.ts`
 
-[profile.dev]
-incremental = true         # faster incremental rebuilds during development
+Maintainers change the version in one place, run `npm run sync:app-version`, and let `npm run verify:app-version` prove the surface stayed aligned.
 
-[profile.release]
-codegen-units = 1          # maximises LLVM optimisation scope
-lto = true                 # link-time optimisation across all crates
-opt-level = "s"            # optimise for binary size
-strip = true               # strip debug symbols from the output binary
+## Managed Artifacts
+
+Heavy rebuildable output lives under:
+
+```text
+../.dataarm-artifacts/
 ```
 
-The release profile is used automatically by both `tauri build` and the GitHub Actions packaging workflow.
+Key managed roots:
+
+- `target/`
+- `build/`
+- `dist/`
+- `playwright-report/`
+- `test-results/`
+- `ci-artifacts/`
+
+Repo-local `src-tauri/target/`, `dist/`, `playwright-report/`, and `test-results/` count as hygiene violations when populated.
+
+## Security Boundary
+
+The WebView is untrusted input. The backend validates and normalizes target data in Rust before it becomes durable state or a real run request.
+
+The repository hardens the Tauri boundary with:
+
+- explicit capabilities
+- no shell plugin
+- native notifications routed through the backend rather than direct frontend plugin access
+- no `externalBin` bundle inputs
+- explicit CSP in development and production
+- a narrow command surface that speaks in typed workspace and target records
+- backend-owned current-workspace state for target mutation and execution commands
+- target-path opening commands scoped to the active workspace instead of arbitrary filesystem paths

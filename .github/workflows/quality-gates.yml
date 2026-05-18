@@ -1,9 +1,10 @@
 name: quality-gates
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,14 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  node-and-rust:
+  quality:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      CARGO_TARGET_DIR: ../.dataarm-artifacts/target
+      CARGO_BUILD_BUILD_DIR: ../.dataarm-artifacts/build
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 24.14.1
+          node-version: 26.1.0
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install frontend dependencies
@@ -31,6 +35,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            src-tauri -> ../.dataarm-artifacts/target
       - name: Install cargo-deny
         uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2.71.3
         with:
@@ -49,11 +56,14 @@ jobs:
   miri:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      CARGO_TARGET_DIR: ../.dataarm-artifacts/target
+      CARGO_BUILD_BUILD_DIR: ../.dataarm-artifacts/build
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 24.14.1
+          node-version: 26.1.0
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install frontend dependencies
@@ -64,6 +74,9 @@ jobs:
           toolchain: nightly-2026-03-29
           components: miri
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: |
+            src-tauri -> ../.dataarm-artifacts/target
       - name: Set up Miri
         run: cargo +nightly-2026-03-29 miri setup --manifest-path src-tauri/Cargo.toml
       - name: Run Miri

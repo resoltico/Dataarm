@@ -1,52 +1,57 @@
 # Scripts
 
-All scripts in this directory are invoked through `package.json` commands.
-Do not call scripts directly unless debugging a single step — always use `npm run <command>` as the entry point.
+All scripts in this directory are invoked through `package.json`. Use `npm run <command>` as the entry point.
 
----
+## Catalogue
 
-## Script Catalogue
+### Verification
 
-### Sidecar Management
+| Command                               | Script                            | Purpose                                                                                                                                          |
+| ------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run sync:app-version`            | `sync-app-version.mjs`            | Synchronizes all version consumers from `vendor/app-version.json`.                                                                               |
+| `npm run verify:app-version`          | `verify-app-version.mjs`          | Confirms `package.json`, `package-lock.json`, Tauri manifests, and frontend version helpers match the version contract.                          |
+| `npm run verify:frontend-coverage`    | `verify-frontend-coverage.mjs`    | Writes managed unit-coverage reports, enforces 100% line plus 100% branch coverage, and confirms Playwright captured instrumented runtime files. |
+| `npm run verify:quality-gates`        | `verify-quality-gates.mjs`        | Confirms the maintained quality lanes, package scripts, and vendor policy file agree.                                                            |
+| `npm run verify:runtime-dependencies` | `verify-runtime-dependencies.mjs` | Confirms the embedded `ffhn-core` intake contract, desktop-owned Miri seam, and no-downstream-patch posture agree.                               |
+| `npm run verify:tooling-refresh`      | `verify-tooling-refresh.mjs`      | Confirms the `mise` Node pin, package manager pin, dependency versions, workflow Node pins, and Tauri posture agree.                             |
+| `npm run verify:project-status`       | `verify-project-status.mjs`       | Confirms the maintained file surface is present and retired sidecar-era scaffolding is absent.                                                   |
+| `npm run verify:dmg-packaging`        | `verify-dmg-packaging.mjs`        | Validates the local DMG packaging contract against `tauri.conf.json`, `Cargo.toml`, and `vendor/dmg-packaging.json`.                             |
+| `npm run verify:github-packaging`     | `verify-github-packaging.mjs`     | Validates the GitHub packaging workflow against the maintained packaging posture.                                                                |
+| `npm run verify:github-release`       | `verify-github-release.mjs`       | Verifies that the published GitHub release object exists, is no longer draft/prerelease, and exposes the maintained public asset inventory.      |
+| `npm run verify:release-publishing`   | `verify-release-publishing.mjs`   | Validates the tag-driven GitHub release workflow, release asset inventory, and publication contract.                                             |
+| `npm run hygiene:verify`              | `verify-hygiene.mjs`              | Fails if managed artifact policy drifted.                                                                                                        |
 
-| Command                                        | Script                                     | Purpose                                                                                                                                                                                                                |
-| ---------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run sync-sidecars`                        | `sync-local-sidecars.mjs`                  | Copies standalone sibling builds from `../ffhn/dist` and `../HTMLCut/dist` into `src-tauri/binaries/` with the correct target-triple suffix. Standard developer path for wiring real binaries locally.                 |
-| `npm run record:release-sidecar-checksums`     | `record-release-sidecar-checksums.mjs`     | Downloads the published `.sha256` assets for the pinned upstream releases in `vendor/bundle-manifest.json` and rewrites `vendor/checksums/expected-upstream-release-checksums.json` with the exact expected hashes.    |
-| `npm run fetch:release-sidecars`               | `fetch-release-sidecars.mjs`               | Downloads the pinned upstream release sidecars declared in `vendor/bundle-manifest.json`, verifies both the published `.sha256` asset and the locally computed hash, and hydrates `src-tauri/binaries/` for packaging. |
-| `npm run prepare:real-sidecars`                | `prepare-real-sidecars.mjs`                | Prints the expected sidecar paths and bundle contract. Use to inspect what the desktop expects before syncing.                                                                                                         |
-| `npm run prepare:first-platform-real-binaries` | `prepare-first-platform-real-binaries.mjs` | Scaffolding helper for the initial intake of platform binaries into the vendor intake slot.                                                                                                                            |
+### Quality Wrappers
 
-### Verification — Run individually or as part of quality gates
+| Command                | Script                     | Purpose                                                                                                                       |
+| ---------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `npm run quality:miri` | `run-miri.mjs`             | Runs the pinned nightly Miri lane against the desktop-owned embedded-runtime seam with the required Tauri isolation override. |
+| `npm run test:unit`    | `vitest`                   | Runs the maintained frontend unit and component lane and writes raw Istanbul coverage into the managed coverage root.         |
+| `npm run test:e2e`     | `run-playwright-tests.mjs` | Runs the maintained Playwright lane with a clean color environment and browser-coverage instrumentation enabled.              |
 
-| Command                                   | Script                                | Purpose                                                                                                                        |
-| ----------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run verify:bundle-manifest`          | `verify-bundle-manifest.mjs`          | Validates `vendor/bundle-manifest.json` schema, repo refs, and version labels.                                                 |
-| `npm run verify:upstream-intake`          | `verify-upstream-intake.mjs`          | Checks the current upstream sidecar intake slot under `vendor/`.                                                               |
-| `npm run verify:hydrated-bundle`          | `verify-hydrated-bundle.mjs`          | Confirms sidecar binaries in `src-tauri/binaries/` are present and executable. Run this before packaging.                      |
-| `npm run verify:real-binary-activation`   | `verify-real-binary-activation.mjs`   | Confirms the activation receipt file exists for the intake slot.                                                               |
-| `npm run verify:packaged-execution-proof` | `verify-packaged-execution-proof.mjs` | Confirms a packaging execution proof artifact exists from a prior build.                                                       |
-| `npm run verify:release-readiness`        | `verify-release-readiness.mjs`        | Aggregate pre-release check: manifest, intake, hydration, activation, and execution proof.                                     |
-| `npm run verify:project-status`           | `verify-project-status.mjs`           | Checks overall project posture: supported platform, sidecar intake state, and runtime contract. Run by `quality:node`.         |
-| `npm run verify:quality-gates`            | `verify-quality-gates.mjs`            | Meta-verifier confirming all `verify:*` scripts are registered in `package.json` and documented. Run by `quality:node`.        |
-| `npm run verify:tooling-refresh`          | `verify-tooling-refresh.mjs`          | Confirms Node, npm, and key devDependency versions match `package.json#engines` constraints. Run by `quality:node`.            |
-| `npm run verify:dmg-packaging`            | `verify-dmg-packaging.mjs`            | Validates `vendor/dmg-packaging.json` is internally consistent and matches the GitHub Actions workflow. Run by `quality:node`. |
-| `npm run verify:github-packaging`         | `verify-github-packaging.mjs`         | Validates the GitHub Actions packaging workflow matches expected config. Run by `quality:node`.                                |
+### Hygiene
 
-### Packaging & Artifacts
+| Command                             | Script               | Purpose                                                                                    |
+| ----------------------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| `npm run hygiene:report`            | `report-hygiene.mjs` | Prints the current artifact hygiene report.                                                |
+| `npm run hygiene:clean:safe`        | `clean-hygiene.mjs`  | Removes disposable build, packaging, Playwright, and temporary output.                     |
+| `npm run hygiene:clean:rebuildable` | `clean-hygiene.mjs`  | Performs safe cleanup plus removes managed Cargo output, build cache, and `node_modules/`. |
 
-| Command                                            | Script                                   | Purpose                                                                                                                             |
-| -------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| _(called by `package:unsigned:dmg:macos-silicon`)_ | `collect-github-packaging-artifacts.mjs` | Collects DMG output and writes `github-packaging-manifest.json` to `src-tauri/target/ci-artifacts/` after a successful Tauri build. |
+### Packaging
 
----
+| Command                                      | Script                                   | Purpose                                                                                                                                                              |
+| -------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run package:unsigned:dmg:macos-silicon` | `collect-github-packaging-artifacts.mjs` | After a successful DMG build, verifies the app bundle carries the maintained legal files and writes the GitHub packaging manifest into the managed CI artifact root. |
+| n/a                                          | `build-release-checksums.mjs`            | Builds the versioned release-manifest copy and SHA-256 manifest consumed by the GitHub release flow.                                                                 |
+| n/a                                          | `publish-github-release.mjs`             | Creates or reuses the draft GitHub release for a tag, uploads the maintained assets, and publishes it.                                                               |
 
-## Naming Convention
+## Naming Rules
 
-Scripts must be named for the responsibility they verify or automate, not for scaffolding or temporary intent.
+- `verify-*.mjs` are read-only contract checks.
+- `sync-*.mjs` rewrite generated or duplicated consumers from one maintained source contract.
+- `run-*.mjs` wrap maintained test or analysis lanes.
+- `report-*.mjs` print maintained subsystem state.
+- `clean-*.mjs` remove disposable or rebuildable state.
+- `collect-*.mjs` record post-build artifact metadata.
 
-- `verify-*.mjs` — Read-only validators. They check state and exit non-zero if invariants are violated.
-- `prepare-*.mjs` — Mutating helpers that set up state the app or packaging process depends on.
-- `record-*.mjs` — Receipt writers. They pull authoritative upstream state into committed local manifests or checksum maps.
-- `sync-*.mjs` — Binary / artifact synchronisation between external repositories and this one.
-- `collect-*.mjs` — Post-build artifact collection and manifest writing.
+Retired script families for sidecar intake, checksum recording, bundle hydration, and release-side activation do not belong in the embedded-runtime repository surface.

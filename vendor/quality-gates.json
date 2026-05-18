@@ -2,40 +2,79 @@
   "schemaVersion": 1,
   "current": "quality-gates-wired",
   "node": {
-    "nodeVersion": "24.14.1",
-    "eslint": "9.39.4",
-    "typescriptEslint": "8.57.2",
-    "typescript": "5.9.3",
-    "prettier": "3.8.1",
+    "runtimeManager": "mise",
+    "nodeVersion": "26.1.0",
+    "packageManager": "npm@11.13.0",
+    "eslint": "10.4.0",
+    "typescriptEslint": "8.59.3",
+    "typescript": "6.0.3",
+    "prettier": "3.8.3",
     "strictTypecheck": true,
+    "strictLintProfile": "typed-strict-plus-runtime-safety",
     "commands": [
+      "npm run hygiene:clean:safe",
       "npm run format:check",
       "npm run lint",
+      "npm run typecheck",
+      "npm run test:unit",
       "npm run build",
+      "npm run verify:quality-gates",
+      "npm run verify:app-version",
+      "npm run verify:runtime-dependencies",
       "npm run verify:tooling-refresh",
       "npm run verify:project-status",
       "npm run verify:dmg-packaging",
       "npm run verify:github-packaging",
-      "typos ."
+      "npm run verify:release-publishing",
+      "typos .",
+      "npm run hygiene:verify"
     ]
+  },
+  "frontendCoverage": {
+    "runner": "vitest",
+    "browserRunner": "playwright",
+    "instrumentation": "istanbul + vite-plugin-istanbul",
+    "artifactRoot": "../.dataarm-artifacts/coverage",
+    "lines": 100,
+    "branches": 100,
+    "note": "The maintained frontend coverage contract enforces 100% line and 100% branch coverage from the unit and component lane, while the Playwright workbench lane must still exercise instrumented runtime files through real GUI flows instead of filler assertions."
   },
   "rust": {
     "stableGates": [
+      "npm run hygiene:clean:safe",
+      "npm run verify:app-version",
       "cargo fmt --all --check --manifest-path src-tauri/Cargo.toml",
       "cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings",
       "cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features",
       "cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features",
       "cargo deny --manifest-path src-tauri/Cargo.toml check",
-      "typos ."
+      "typos .",
+      "npm run hygiene:verify"
     ],
     "cargoDeny": "0.19.0",
     "typosCli": "1.44.0"
   },
+  "all": {
+    "commands": [
+      "npm run quality:node",
+      "npm run test:e2e",
+      "npm run verify:frontend-coverage",
+      "npm run quality:rust"
+    ]
+  },
+  "hygiene": {
+    "cargoTargetDir": "../.dataarm-artifacts/target",
+    "cargoBuildDir": "../.dataarm-artifacts/build",
+    "reportCommand": "npm run hygiene:report",
+    "verifyCommand": "npm run hygiene:verify",
+    "safeCleanCommand": "npm run hygiene:clean:safe",
+    "rebuildableCleanCommand": "npm run hygiene:clean:rebuildable"
+  },
   "miri": {
     "nightlyOnly": true,
     "toolchain": "nightly-2026-03-29",
-    "command": "cargo +nightly-2026-03-29 miri test --manifest-path src-tauri/Cargo.toml --workspace --all-features",
-    "note": "Pinned nightly chosen because miri is nightly-only and the component is present for x86_64-unknown-linux-gnu on 2026-03-29."
+    "command": "node scripts/run-miri.mjs",
+    "note": "Pinned nightly chosen because miri is nightly-only; the wrapper targets one desktop-owned embedded-runtime seam test and adds -Zmiri-disable-isolation because Tauri startup probes the host executable path before any tests run."
   },
-  "note": "This file defines the enforced project quality posture. The TypeScript baseline stays on 5.9.x until stable typescript-eslint supports TypeScript 6."
+  "note": "This file defines the enforced project quality posture. The Node runtime is pinned through .mise.toml, workflows are required to match that pin, the frontend coverage contract requires 100% line and branch coverage plus instrumented Playwright flow evidence, and the hygiene lane keeps heavyweight build artifacts in managed sibling roots instead of repo-local target trees."
 }

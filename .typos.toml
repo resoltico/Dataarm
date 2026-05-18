@@ -9,7 +9,6 @@ extend-exclude = [
 ]
 
 [default.extend-words]
-FFHN = "FFHN"
 ffhn = "ffhn"
 htmlcut = "htmlcut"
 Tauri = "Tauri"

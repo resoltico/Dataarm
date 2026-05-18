@@ -1,19 +1,24 @@
 [package]
-name = "ffhn-desktop"
-version = "0.16.1"
-description = "FFHN desktop wrapper with Apple Silicon DMG packaging"
-license = "UNLICENSED"
+name = "dataarm"
+version = "0.1.0"
+description = "Dataarm desktop workbench built with Tauri"
+license = "MIT"
 publish = false
-authors = ["OpenAI"]
-edition = "2021"
+edition = "2024"
+rust-version = "1.95"
 
 [build-dependencies]
-tauri-build = { version = "2.5.6", features = [] }
+tauri-build = { version = "2.6.1", features = [] }
 
 [dependencies]
+ffhn-core = { version = "8.0.0", git = "https://github.com/resoltico/ffhn.git", tag = "v8.0.0", package = "ffhn-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2.10.3", features = [] }
+tauri = { version = "2.11.1", features = [] }
+tauri-plugin-notification = "2.3.3"
+tempfile = "3.27.0"
+time = { version = "0.3.47", features = ["formatting", "macros"] }
+toml = "1.1.2"
 
 [profile.dev]
 incremental = true
@@ -23,3 +28,7 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+
+
+

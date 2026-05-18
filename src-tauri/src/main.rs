@@ -1,38 +1,33 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod models;
-mod logic;
 mod commands;
+mod logic;
+mod models;
 
-use crate::models::*;
 use crate::commands::*;
+use crate::models::AppState;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            get_app_info,
-            get_sidecar_health,
-            get_bundle_manifest,
-            get_bundle_hydration_status,
-            get_runtime_readiness_status,
-            get_project_status,
-            run_ffhn_probe,
+            bootstrap,
             open_workspace,
+            refresh_workspace,
             create_workspace,
-            create_target,
+            read_target,
+            get_target_template,
+            preview_target,
+            save_target,
+            update_notification_settings,
+            clear_notification_feed,
             delete_target,
-            duplicate_target,
-            toggle_target,
-            list_targets,
-            list_runs,
-            get_run_detail,
-            get_workspace_diagnostics,
-            run_all_targets,
             run_target,
-            list_recent_workspaces,
-            open_path
+            run_workspace,
+            open_workspace_path,
+            open_target_path
         ])
         .run(tauri::generate_context!())
-        .expect("error while running FFHN Desktop");
+        .expect("error while running Dataarm");
 }

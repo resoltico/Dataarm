@@ -1,0 +1,116 @@
+Dataarm
+Copyright (c) 2026 Ervins Strauhmanis
+
+Licensed under the MIT License. See LICENSE file for details.
+
+================================================================================
+
+The Dataarm desktop application is distributed as a native Tauri bundle that
+includes:
+
+  - compiled Rust crates from crates.io and pinned upstream git dependencies
+  - bundled frontend assets built from npm packages
+
+The authoritative dependency inventories for a given release are recorded in:
+
+  - src-tauri/Cargo.lock
+  - package-lock.json
+
+The shipped macOS application bundle also carries these maintained legal files
+under Contents/SharedSupport/Legal:
+
+  - LICENSE
+  - NOTICE
+  - PATENTS.md
+  - Cargo.lock
+  - package-lock.json
+
+This NOTICE summarizes the maintained license posture for public distribution.
+It intentionally points to the lockfiles and package metadata as the source of
+truth rather than trying to freeze every package name in prose.
+
+For executable-form distribution, the corresponding Dataarm source form and the
+maintained legal files are published from the same repository and release flow
+that produces the public DMG.
+
+For a fuller Rust license report, run:
+  cargo install cargo-about
+  cargo about generate about.hbs --manifest-path src-tauri/Cargo.toml
+
+For npm package metadata, inspect:
+  node_modules/*/package.json
+  package-lock.json
+
+================================================================================
+Rust dependency license policy
+================================================================================
+
+The Rust dependency policy enforced by deny.toml currently allows these SPDX
+license families:
+
+  Apache-2.0
+  BSD-3-Clause
+  CDLA-Permissive-2.0
+  ISC
+  MIT
+  Unicode-3.0
+  Zlib
+
+It also carries scoped MPL-2.0 exceptions for CSS selector and parser crates:
+
+  cssparser
+  cssparser-macros
+  dtoa-short
+  option-ext
+  selectors
+
+The embedded runtime surface includes pinned upstream git dependencies from:
+
+  https://github.com/resoltico/ffhn.git
+  https://github.com/resoltico/HTMLCut.git
+
+Those sources are allowed explicitly in deny.toml and are version-locked in
+src-tauri/Cargo.lock.
+
+================================================================================
+Frontend package metadata
+================================================================================
+
+Installed npm package metadata in the maintained Dataarm toolchain currently
+reports the following license families:
+
+  Apache-2.0
+  Apache-2.0 OR MIT
+  BlueOak-1.0.0
+  BSD-2-Clause
+  BSD-3-Clause
+  CC-BY-4.0
+  CC0-1.0
+  ISC
+  MIT
+  MIT-0
+  MPL-2.0
+
+Representative packages from the maintained surface include:
+
+  react, react-dom, vite, vitest, eslint       - MIT
+  @tauri-apps/api, @tauri-apps/cli             - Apache-2.0 OR MIT
+  typescript                                   - Apache-2.0
+  lightningcss                                 - MPL-2.0
+  caniuse-lite                                 - CC-BY-4.0
+  mdn-data                                     - CC0-1.0
+
+The exact package-by-package obligations for any release are controlled by the
+license texts shipped by those packages and the inventories recorded in
+package-lock.json and src-tauri/Cargo.lock.
+
+================================================================================
+Trademark notice
+================================================================================
+
+Third-party project names, package names, and trademarks mentioned in this file
+are used descriptively to identify dependency sources only.
+
+Dataarm is not affiliated with, endorsed by, or sponsored by the maintainers of
+Tauri, React, TypeScript, Mozilla, or any other third-party project whose
+components appear in the dependency graph.

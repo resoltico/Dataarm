@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "current": "released-ffhn-runtime-line",
+  "ffhnCore": {
+    "package": "ffhn-core",
+    "version": "8.0.0",
+    "sourceKind": "git-tag",
+    "repository": "https://github.com/resoltico/ffhn.git",
+    "tag": "v8.0.0",
+    "manifestPath": "src-tauri/Cargo.toml",
+    "role": "embedded runtime engine"
+  },
+  "htmlcutCore": {
+    "ownership": "transitive-through-ffhn-core",
+    "directDependencyAllowed": false
+  },
+  "miri": {
+    "command": "node scripts/run-miri.mjs",
+    "ownedSeam": "desktop-target-run-embedded-runtime",
+    "targetTest": "execute_target_run_persists_runtime_artifacts_for_file_targets",
+    "note": "The desktop Miri lane proves the Tauri-to-ffhn-core embedded target-run seam. ffhn-core owns the deeper engine and selector-stack proof in its own repository."
+  },
+  "patchPolicy": {
+    "active": false,
+    "note": "No downstream selector-stack patch is allowed while Dataarm consumes the released ffhn-core v8.0.0 line."
+  }
+}

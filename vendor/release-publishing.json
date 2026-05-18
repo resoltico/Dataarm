@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "current": "github-release-publishing-wired",
+  "githubWorkflow": ".github/workflows/release.yml",
+  "manualPackagingWorkflow": ".github/workflows/package-unsigned-macos.yml",
+  "githubRunner": "macos-15",
+  "releaseTagPrefix": "v",
+  "releaseTitleTemplate": "Dataarm v{version}",
+  "releaseNotesSource": "CHANGELOG.md",
+  "managedAssets": [
+    "Dataarm_{version}_aarch64.dmg",
+    "dataarm-{version}-github-packaging-manifest.json",
+    "dataarm-{version}-checksums.txt"
+  ],
+  "signing": "disabled",
+  "notarization": "disabled",
+  "note": "Tag-triggered publication now creates a GitHub release object for the unsigned Apple Silicon DMG plus maintained verification sidecars. GitHub-generated source-code archive links remain convenience downloads, not part of the maintained asset inventory."
+}

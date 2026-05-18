@@ -1,4 +1,12 @@
 import fs from 'node:fs';
+import path from 'node:path';
+
+import {
+  cargoTargetRoot,
+  macosAppBundleRoot,
+  repoRelativePath,
+  repoRoot,
+} from './lib/artifact-roots.mjs';
 
 const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -9,12 +17,98 @@ function fail(message) {
   process.exit(1);
 }
 
-if (conf.productName !== 'FFHN') fail('Expected productName FFHN');
-if (conf.identifier !== 'com.resoltico.ffhn') fail('Expected identifier com.resoltico.ffhn');
-if (!Array.isArray(conf.bundle?.targets) || !conf.bundle.targets.includes('dmg'))
+if (conf.productName !== 'Dataarm') {
+  fail('Expected productName Dataarm');
+}
+if (conf.identifier !== 'com.resoltico.dataarm') {
+  fail('Expected identifier com.resoltico.dataarm');
+}
+if (!Array.isArray(conf.bundle?.targets) || !conf.bundle.targets.includes('dmg')) {
   fail('Expected dmg target');
-if (!pkg.scripts['tauri:build:dmg:macos-silicon']?.includes('aarch64-apple-darwin'))
+}
+if (conf.bundle?.externalBin) {
+  fail('Embedded runtime must not declare externalBin packaging');
+}
+if (conf.app?.windows?.[0]?.label !== 'main') {
+  fail('Main window label must be explicit');
+}
+if (conf.app?.security?.csp == null) {
+  fail('Production CSP must be defined');
+}
+if (conf.app?.security?.devCsp == null) {
+  fail('Development CSP must be defined');
+}
+if (!pkg.scripts['tauri:build:dmg:macos-silicon']?.includes('aarch64-apple-darwin')) {
   fail('Expected Apple Silicon dmg script');
-if (vendor.displayAppName !== 'FFHN') fail('Expected FFHN display name in vendor posture');
-if (vendor.macosTarget !== 'aarch64-apple-darwin') fail('Expected Apple Silicon target posture');
+}
+if (conf.build?.frontendDist !== '../../.dataarm-artifacts/dist') {
+  fail('Expected tauri frontendDist to point at the managed sibling dist root');
+}
+if (vendor.displayAppName !== 'Dataarm') {
+  fail('Expected Dataarm display name in vendor posture');
+}
+if (vendor.internalDesktopPackageName !== pkg.name) {
+  fail('vendor internalDesktopPackageName must match package.json name');
+}
+if (vendor.bundleIdentifier !== conf.identifier) {
+  fail('vendor bundleIdentifier must match tauri.conf.json identifier');
+}
+if (vendor.buildScript !== 'npm run tauri:build:dmg:macos-silicon') {
+  fail('vendor buildScript is out of sync');
+}
+if (vendor.macosTarget !== 'aarch64-apple-darwin') {
+  fail('Expected Apple Silicon target posture');
+}
+const expectedAppBundleDir = repoRelativePath(
+  macosAppBundleRoot(vendor.macosTarget, vendor.displayAppName),
+);
+if (vendor.localAppBundleDirectory !== expectedAppBundleDir) {
+  fail('Expected vendor localAppBundleDirectory to match the managed Cargo target root');
+}
+const expectedDmgOutputDir = repoRelativePath(
+  path.join(cargoTargetRoot(), vendor.macosTarget, 'release', 'bundle', 'dmg'),
+);
+if (vendor.localOutputDirectory !== expectedDmgOutputDir) {
+  fail('Expected vendor localOutputDirectory to match the managed Cargo target root');
+}
+if (vendor.appBundleLegalDirectory !== 'Contents/SharedSupport/Legal') {
+  fail('Expected appBundleLegalDirectory to pin the bundled legal directory');
+}
+const expectedBundledLegalFiles = {
+  'SharedSupport/Legal/LICENSE': '../LICENSE',
+  'SharedSupport/Legal/NOTICE': '../NOTICE',
+  'SharedSupport/Legal/PATENTS.md': '../PATENTS.md',
+  'SharedSupport/Legal/Cargo.lock': './Cargo.lock',
+  'SharedSupport/Legal/package-lock.json': '../package-lock.json',
+};
+const actualMacosFiles = conf.bundle?.macOS?.files;
+if (!actualMacosFiles || typeof actualMacosFiles !== 'object' || Array.isArray(actualMacosFiles)) {
+  fail('Expected bundle.macOS.files to declare bundled legal files');
+}
+const normalizedVendorFiles = Object.fromEntries(
+  (vendor.bundledLegalFiles ?? []).map((entry) => {
+    const bundlePath = String(entry.bundlePath ?? '');
+    const sourcePath = String(entry.sourcePath ?? '');
+    if (!bundlePath.startsWith('Contents/')) {
+      fail(`bundled legal file must live under Contents/: ${bundlePath}`);
+    }
+    return [bundlePath.replace(/^Contents\//u, ''), sourcePath];
+  }),
+);
+if (JSON.stringify(normalizedVendorFiles) !== JSON.stringify(expectedBundledLegalFiles)) {
+  fail('vendor bundledLegalFiles must match the maintained legal bundle inventory');
+}
+if (JSON.stringify(actualMacosFiles) !== JSON.stringify(expectedBundledLegalFiles)) {
+  fail('tauri.conf.json bundle.macOS.files must match the maintained legal bundle inventory');
+}
+const expectedManifestPath = repoRelativePath(
+  path.join(
+    path.resolve(repoRoot, '..', '.dataarm-artifacts'),
+    'ci-artifacts',
+    'github-packaging-manifest.json',
+  ),
+);
+if (vendor.githubArtifactManifest !== expectedManifestPath) {
+  fail('Expected vendor githubArtifactManifest to match the managed CI artifact root');
+}
 console.log('verify-dmg-packaging: ok');

@@ -1,53 +1,119 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 #[derive(Default)]
 pub(crate) struct AppState {
-    pub(crate) recent_workspaces: Mutex<Vec<RecentWorkspace>>,
-    pub(crate) runs: Mutex<Vec<RunRecord>>,
+    pub(crate) recent_workspaces_lock: Mutex<()>,
+    pub(crate) notification_state_lock: Mutex<()>,
+    pub(crate) current_workspace_path: Mutex<Option<PathBuf>>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DesktopBootstrap {
+    pub(crate) app: DesktopAppInfo,
+    pub(crate) workspace: WorkspaceSnapshot,
+}
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DesktopAppInfo {
     pub(crate) app_name: String,
     pub(crate) app_version: String,
-    pub(crate) mode: String,
+    pub(crate) runtime_contract: String,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SidecarHealth {
-    pub(crate) ffhn_configured: bool,
-    pub(crate) htmlcut_configured: bool,
-    pub(crate) ffhn_binary_path_hint: Option<String>,
-    pub(crate) htmlcut_binary_path_hint: Option<String>,
-    pub(crate) runtime_source: String,
-    pub(crate) execution_mode: String,
-    pub(crate) note: String,
+pub(crate) struct WorkspaceSnapshot {
+    pub(crate) summary: WorkspaceSummary,
+    pub(crate) recent_workspaces: Vec<RecentWorkspace>,
+    pub(crate) notification_center: NotificationCenterSnapshot,
+    pub(crate) targets: Vec<TargetSummary>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationPolicy {
+    Off,
+    ErrorsOnly,
+    #[default]
+    ChangesAndErrors,
+    AllCompletions,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationDelivery {
+    #[default]
+    InApp,
+    System,
+    Both,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationPermissionState {
+    Granted,
+    Denied,
+    Prompt,
+    PromptWithRationale,
+    Unknown,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationChannel {
+    InApp,
+    System,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationScopeKind {
+    TargetRun,
+    WorkspaceRun,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotificationTone {
+    Info,
+    Success,
+    Warning,
+    Error,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NotificationSettings {
+    pub(crate) notify_when: NotificationPolicy,
+    pub(crate) delivery: NotificationDelivery,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct RuntimeReadinessStatus {
-    pub(crate) host_target_triple: String,
-    pub(crate) current: String,
-    pub(crate) runtime_source: String,
-    pub(crate) ffhn_binary_path: Option<String>,
-    pub(crate) htmlcut_binary_path: Option<String>,
-    pub(crate) executable_pair_available: bool,
-    pub(crate) note: String,
+pub(crate) struct NotificationCenterSnapshot {
+    pub(crate) settings: NotificationSettings,
+    pub(crate) permission_state: NotificationPermissionState,
+    pub(crate) items: Vec<NotificationRecord>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ProbeResult {
-    pub(crate) ok: bool,
-    pub(crate) command: String,
-    pub(crate) mode: String,
-    pub(crate) note: String,
+pub(crate) struct NotificationRecord {
+    pub(crate) id: String,
+    pub(crate) created_at: String,
+    pub(crate) tone: NotificationTone,
+    pub(crate) scope_kind: NotificationScopeKind,
+    pub(crate) title: String,
+    pub(crate) body: String,
+    pub(crate) workspace_name: String,
+    pub(crate) target_display_name: Option<String>,
+    pub(crate) delivered_channels: Vec<NotificationChannel>,
+    pub(crate) delivery_error: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -55,47 +121,11 @@ pub(crate) struct ProbeResult {
 pub(crate) struct WorkspaceSummary {
     pub(crate) workspace_name: String,
     pub(crate) workspace_path: String,
+    pub(crate) workspace_source: String,
     pub(crate) target_count: usize,
-    pub(crate) run_count: usize,
-    pub(crate) mode: String,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct TargetRecord {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) url: String,
-    pub(crate) status: String,
-    pub(crate) enabled: bool,
-    pub(crate) extractor_summary: String,
-    pub(crate) last_run_at: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RunRecord {
-    pub(crate) id: String,
-    pub(crate) target_id: String,
-    pub(crate) status: String,
-    pub(crate) started_at: String,
-    pub(crate) finished_at: Option<String>,
-    pub(crate) summary: String,
-    pub(crate) mode: String,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RunDetail {
-    pub(crate) id: String,
-    pub(crate) target_id: String,
-    pub(crate) status: String,
-    pub(crate) mode: String,
-    pub(crate) command_attempted: String,
-    pub(crate) stdout_preview: String,
-    pub(crate) stderr_preview: String,
-    pub(crate) note: String,
+    pub(crate) runnable_target_count: usize,
+    pub(crate) issue_count: usize,
+    pub(crate) last_run_count: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -103,255 +133,147 @@ pub(crate) struct RunDetail {
 pub(crate) struct RecentWorkspace {
     pub(crate) workspace_name: String,
     pub(crate) workspace_path: String,
+    pub(crate) workspace_source: String,
+    pub(crate) last_opened_at: String,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct WorkspaceDiagnostics {
-    pub(crate) execution_mode: String,
-    pub(crate) workspace_path: String,
-    pub(crate) ffhn_resolution: String,
-    pub(crate) htmlcut_resolution: String,
-    pub(crate) notes: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BundleDependencySpec {
-    pub(crate) repo: String,
-    #[serde(rename = "ref")]
-    pub(crate) git_ref: String,
-    pub(crate) version_label: String,
-    pub(crate) binary_basename: String,
-    pub(crate) status: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BundleManifestDesktopProduct {
-    pub(crate) name: String,
-    pub(crate) version: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BundleExecutionPosture {
-    pub(crate) current: String,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BundleManifestDependencies {
-    pub(crate) ffhn: BundleDependencySpec,
-    pub(crate) htmlcut: BundleDependencySpec,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BundleManifest {
-    pub(crate) schema_version: u64,
-    pub(crate) desktop_product: BundleManifestDesktopProduct,
-    pub(crate) runtime_contract: String,
-    pub(crate) execution_posture: BundleExecutionPosture,
-    pub(crate) dependencies: BundleManifestDependencies,
-    pub(crate) supported_target_triples: Vec<String>,
-    pub(crate) notes: Vec<String>,
+pub(crate) struct TargetSummary {
+    pub(crate) directory_name: String,
+    pub(crate) target_directory_path: String,
+    pub(crate) target_id: Option<String>,
+    pub(crate) display_name: Option<String>,
+    pub(crate) enabled: Option<bool>,
+    pub(crate) source_kind: Option<String>,
+    pub(crate) source_locator: Option<String>,
+    pub(crate) selection_kind: Option<String>,
+    pub(crate) selection_label: Option<String>,
+    pub(crate) compare_basis: Option<String>,
+    pub(crate) status_kind: String,
+    pub(crate) baseline_phase: Option<String>,
+    pub(crate) last_run_outcome: Option<String>,
+    pub(crate) last_run_at: Option<String>,
+    pub(crate) error_message: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct BundleInputStatus {
-    pub(crate) path: String,
-    pub(crate) present: bool,
-    pub(crate) executable: bool,
+pub(crate) struct TargetDocumentRecord {
+    pub(crate) directory_name: String,
+    pub(crate) target_directory_path: String,
+    pub(crate) target_file_path: String,
+    pub(crate) raw_toml: String,
+    pub(crate) canonical_toml: Option<String>,
+    pub(crate) target_id: Option<String>,
+    pub(crate) display_name: Option<String>,
+    pub(crate) enabled: Option<bool>,
+    pub(crate) status_report: Option<Value>,
+    pub(crate) last_run_snapshot: Option<Value>,
+    pub(crate) state_document: Option<Value>,
+    pub(crate) artifact_history: Option<TargetArtifactHistory>,
+    pub(crate) artifact_issues: Vec<String>,
+    pub(crate) error_message: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum SnapshotArtifactSlot {
+    Current,
+    History,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct BundleHydrationStatus {
-    pub(crate) current: String,
-    pub(crate) note: String,
-    pub(crate) ffhn: BundleInputStatus,
-    pub(crate) htmlcut: BundleInputStatus,
-    pub(crate) supported_target_triples: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ExpectedArtifacts {
-    pub(crate) ffhn: Vec<String>,
-    pub(crate) htmlcut: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct SupportedPlatformSource {
-    pub(crate) target_triple: String,
-    pub(crate) status: String,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct UpstreamIntakeSource {
-    pub(crate) schema_version: u64,
-    pub(crate) current: String,
-    pub(crate) first_supported_platform: SupportedPlatformSource,
-    pub(crate) expected_artifacts: ExpectedArtifacts,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RealBinaryActivationSource {
-    pub(crate) schema_version: u64,
-    pub(crate) current: String,
-    pub(crate) first_supported_platform: SupportedPlatformSource,
-    pub(crate) activation_receipt_present: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PackagedExecutionProofSource {
-    pub(crate) schema_version: u64,
-    pub(crate) current: String,
-    pub(crate) first_supported_platform: SupportedPlatformSource,
-    pub(crate) packaged_receipt_present: bool,
-    pub(crate) runtime_envelope_compatibility_checked: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ReleaseReadinessSource {
-    pub(crate) schema_version: u64,
-    pub(crate) current: String,
-    pub(crate) first_supported_platform: SupportedPlatformSource,
-    pub(crate) blocking_gates: Vec<String>,
-    pub(crate) release_receipt_present: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PackagingSource {
-    pub(crate) schema_version: u64,
-    pub(crate) current: String,
-    pub(crate) macos_target: String,
-    pub(crate) local_output_directory: String,
-    pub(crate) bundles: Vec<String>,
-    pub(crate) github_workflow: String,
-    pub(crate) github_runner: String,
-    pub(crate) signing: String,
-    pub(crate) notarization: String,
-    pub(crate) note: String,
+pub(crate) struct SnapshotArtifactRecord {
+    pub(crate) slot: SnapshotArtifactSlot,
+    pub(crate) captured_at: String,
+    pub(crate) compare_digest_sha256: String,
+    pub(crate) outer_html_sha256: String,
+    pub(crate) compare_path: String,
+    pub(crate) outer_html_path: String,
+    pub(crate) extraction_path: String,
+    pub(crate) compare_text: String,
+    pub(crate) outer_html: String,
+    pub(crate) extraction_record: Value,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ProjectStatus {
-    pub(crate) runtime_contract: String,
-    pub(crate) supported_platform: SupportedPlatformSummary,
-    pub(crate) sidecar_intake: SidecarIntakeSummary,
-    pub(crate) packaged_execution: PackagedExecutionSummary,
-    pub(crate) packaging: PackagingSummary,
-    pub(crate) release: ReleaseSummary,
-    pub(crate) priorities: Vec<String>,
+pub(crate) struct TargetArtifactHistory {
+    pub(crate) monitoring_contract_digest_sha256: String,
+    pub(crate) current_snapshot: Option<SnapshotArtifactRecord>,
+    pub(crate) snapshot_history: Vec<SnapshotArtifactRecord>,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SupportedPlatformSummary {
-    pub(crate) target_triple: String,
-    pub(crate) status: String,
-    pub(crate) note: String,
+pub(crate) struct TargetTemplate {
+    pub(crate) kind: String,
+    pub(crate) raw_toml: String,
 }
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SidecarIntakeSummary {
-    pub(crate) current: String,
-    pub(crate) target_triple: String,
-    pub(crate) status: String,
-    pub(crate) expected_ffhn_artifacts: Vec<String>,
-    pub(crate) expected_htmlcut_artifacts: Vec<String>,
-    pub(crate) activation_receipt_present: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PackagedExecutionSummary {
-    pub(crate) current: String,
-    pub(crate) target_triple: String,
-    pub(crate) status: String,
-    pub(crate) packaged_receipt_present: bool,
-    pub(crate) runtime_envelope_compatibility_checked: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PackagingSummary {
-    pub(crate) current: String,
-    pub(crate) local_output_directory: String,
-    pub(crate) bundles: Vec<String>,
-    pub(crate) github_workflow: String,
-    pub(crate) github_runner: String,
-    pub(crate) signing: String,
-    pub(crate) notarization: String,
-    pub(crate) note: String,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct ReleaseSummary {
-    pub(crate) current: String,
-    pub(crate) target_triple: String,
-    pub(crate) status: String,
-    pub(crate) blocking_gates: Vec<String>,
-    pub(crate) release_receipt_present: bool,
-    pub(crate) note: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct FixtureEnvelope {
-    pub(crate) ok: bool,
-    pub(crate) note: Option<String>,
-    pub(crate) error: Option<String>,
-    pub(crate) runs: Option<Vec<FixtureRun>>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct FixtureRun {
-    pub(crate) run_id: String,
+pub(crate) struct TargetPreview {
     pub(crate) target_id: String,
-    pub(crate) status: String,
-    pub(crate) summary: String,
-    pub(crate) started_at: String,
-    pub(crate) finished_at: Option<String>,
-    pub(crate) command: String,
-    pub(crate) stdout: String,
-    pub(crate) stderr: String,
-    pub(crate) note: String,
-    pub(crate) extracted_text: String,
-    pub(crate) mode: String,
+    pub(crate) display_name: String,
+    pub(crate) canonical_toml: String,
+    pub(crate) status_report: Value,
+    pub(crate) dry_run_report: Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PersistedAppState {
-    pub(crate) schema_version: u64,
-    pub(crate) last_opened_workspace_path: String,
-    pub(crate) recent_workspaces: Vec<RecentWorkspace>,
+pub(crate) struct TargetMutationResult {
+    pub(crate) workspace: WorkspaceSnapshot,
+    pub(crate) directory_name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TargetRunResult {
+    pub(crate) workspace: WorkspaceSnapshot,
+    pub(crate) directory_name: String,
+    pub(crate) status_report: Value,
+    pub(crate) run_report: Value,
+    pub(crate) notification: Option<NotificationRecord>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BatchRunResult {
+    pub(crate) workspace: WorkspaceSnapshot,
+    pub(crate) batch_report: Value,
+    pub(crate) skipped_directories: Vec<SkippedDirectory>,
+    pub(crate) notification: Option<NotificationRecord>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SkippedDirectory {
+    pub(crate) directory_name: String,
+    pub(crate) reason: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct WorkspaceMetadata {
-    pub(crate) workspace_name: Option<String>,
+pub(crate) struct TargetSaveRequest {
+    pub(crate) previous_directory_name: Option<String>,
+    pub(crate) raw_toml: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NotificationStateEnvelope {
+    pub(crate) schema_version: u32,
+    pub(crate) settings: NotificationSettings,
+    pub(crate) items: Vec<NotificationRecord>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RecentWorkspaceEnvelope {
+    pub(crate) schema_version: u32,
+    pub(crate) items: Vec<RecentWorkspace>,
 }
