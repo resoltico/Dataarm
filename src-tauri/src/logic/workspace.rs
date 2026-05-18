@@ -195,7 +195,7 @@ pub(crate) fn workspace_snapshot(
         target_count: targets.len(),
         runnable_target_count: targets
             .iter()
-            .filter(|target| target.target_id.is_some())
+            .filter(|target| target.runnable_target_id.is_some())
             .count(),
         issue_count: targets
             .iter()
@@ -582,7 +582,7 @@ fn inventory_target_directory(
         Err(_) => None,
     };
 
-    let (target_id, status_kind, baseline_phase, error_message) =
+    let (runnable_target_id, status_kind, baseline_phase, error_message) =
         match (&target_paths, &status_result) {
             (Err(error), _) => (
                 None,
@@ -615,12 +615,13 @@ fn inventory_target_directory(
     let parsed_target_ref = parsed_target.as_ref().ok();
     let parsed_target_error = parsed_target.as_ref().err().cloned();
     let declared_target_id = parsed_target_ref.map(|target| target.target_id().to_owned());
-    let final_target_id = target_id.or(declared_target_id);
+    let final_target_id = runnable_target_id.clone().or(declared_target_id);
 
     Ok(TargetSummary {
         directory_name,
         target_directory_path: target_dir.display().to_string(),
         target_id: final_target_id,
+        runnable_target_id,
         display_name: parsed_target_ref
             .map(|target| target.display_name().to_owned())
             .or_else(|| status_result.as_ref().and_then(status_display_name)),

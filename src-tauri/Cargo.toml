@@ -1,6 +1,6 @@
 [package]
 name = "dataarm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Dataarm desktop workbench built with Tauri"
 license = "MIT"
 publish = false
@@ -28,6 +28,8 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+
 
 
 

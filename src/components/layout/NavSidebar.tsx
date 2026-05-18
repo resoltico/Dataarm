@@ -1,7 +1,9 @@
 import { NotificationCenter } from './NotificationCenter';
 import type { useDashboardState } from '../../hooks/useDashboardState';
 
-export type FilterView = 'all' | 'changed' | 'attention';
+export type FilterView = 'all' | 'changed' | 'never_run' | 'http' | 'file' | 'attention';
+
+export type TargetGroupBy = 'none' | 'status' | 'source_kind';
 
 type StateType = ReturnType<typeof useDashboardState>;
 
@@ -24,6 +26,17 @@ export function NavSidebar({
   const views: Array<{ id: FilterView; label: string; count: number; alert?: boolean }> = [
     { id: 'all', label: 'All targets', count: state.stats.total },
     { id: 'changed', label: 'Changed', count: state.stats.changed, alert: state.stats.changed > 0 },
+    { id: 'never_run', label: 'Needs baseline', count: state.stats.firstRun },
+    {
+      id: 'http',
+      label: 'HTTP sources',
+      count: state.targets.filter((target) => target.sourceKind === 'http').length,
+    },
+    {
+      id: 'file',
+      label: 'File sources',
+      count: state.targets.filter((target) => target.sourceKind === 'file').length,
+    },
     {
       id: 'attention',
       label: 'Needs attention',

@@ -618,6 +618,7 @@ mod tests {
                 directory_name: "release_notes".to_owned(),
                 target_directory_path: format!("/tmp/{name}/release_notes"),
                 target_id: Some("release_notes".to_owned()),
+                runnable_target_id: Some("release_notes".to_owned()),
                 display_name: Some("Release notes".to_owned()),
                 enabled: Some(true),
                 source_kind: Some("file".to_owned()),

@@ -9,6 +9,14 @@ import {
   makeWorkspaceSnapshot,
 } from './fixtures';
 
+function guidedSession() {
+  const document = makeDocument();
+  if (!document.guidedSession) {
+    throw new Error('Expected fixture document to include a guided session.');
+  }
+  return document.guidedSession;
+}
+
 afterEach(() => {
   cleanup();
 });
@@ -29,7 +37,9 @@ describe('DetailPanel', () => {
     );
 
     expect(screen.getByText('New HTTP target')).toBeTruthy();
-    expect(screen.getByText('Previewing the current draft against ffhn-core.')).toBeTruthy();
+    expect(
+      screen.getByText('Previewing the current draft against the canonical FFHN runtime contract.'),
+    ).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -81,8 +91,11 @@ describe('DetailPanel', () => {
               targetId: 'release_digest',
               displayName: 'Release digest',
               canonicalToml: 'target_id = "release_digest"\n',
+              draftSession: guidedSession(),
               statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
               dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'initialized' } },
+              previewSnapshot: makeSnapshotArtifact(),
+              previewArtifactIssues: [],
             },
           },
         })}

@@ -8,7 +8,31 @@ async function waitForDetailTitle(page: Page, heading: string) {
 async function waitForLoadedEditor(page: Page, heading: string) {
   await waitForDetailTitle(page, heading);
   await page.getByRole('button', { name: 'Config' }).click();
-  await expect(page.getByLabel('Target TOML editor')).toBeEnabled();
+  await expect(page.getByLabel('Target ID')).toBeEnabled();
+}
+
+async function fillGuidedDraft(
+  page: Page,
+  draft: {
+    targetId: string;
+    displayName: string;
+    sourceLocator: string;
+    selectionSelector?: string;
+  },
+) {
+  await page.getByLabel('Target ID').fill(draft.targetId);
+  await page.getByLabel('Display name').fill(draft.displayName);
+
+  const sourceUrlField = page.getByLabel('Source URL');
+  if ((await sourceUrlField.count()) > 0) {
+    await sourceUrlField.fill(draft.sourceLocator);
+  } else {
+    await page.getByLabel('File path').fill(draft.sourceLocator);
+  }
+
+  if (draft.selectionSelector) {
+    await page.getByLabel('CSS selector').fill(draft.selectionSelector);
+  }
 }
 
 async function openArtifactSubTab(page: Page, label: 'Preview' | 'Last run' | 'State' | 'Batch') {
@@ -38,8 +62,8 @@ test.describe('Dataarm Dashboard', () => {
     await page.getByRole('button', { name: 'New HTTP' }).click();
     await waitForLoadedEditor(page, 'New HTTP target');
 
-    const editor = page.getByLabel('Target TOML editor');
-    await expect(editor).toContainText('target_id = "website_watch"');
+    await expect(page.getByLabel('Target ID')).toHaveValue('website_watch');
+    await expect(page.getByLabel('Source URL')).toHaveValue('https://example.com');
 
     await page.getByRole('button', { name: 'Preview target' }).click();
 
@@ -58,7 +82,7 @@ test.describe('Dataarm Dashboard', () => {
     await page.getByRole('button', { name: 'New HTTP' }).click();
     await waitForLoadedEditor(page, 'New HTTP target');
 
-    await page.getByLabel('Target TOML editor').fill('this is not valid toml');
+    await page.getByLabel('Target ID').fill('');
     await page.getByRole('button', { name: 'Preview target' }).click();
 
     await expect(page.locator('.detail-tab-btn-active')).toHaveText('Preview');
@@ -85,8 +109,7 @@ test.describe('Dataarm Dashboard', () => {
     await page.goto('/');
     await waitForLoadedEditor(page, 'Demo status board');
 
-    const editor = page.getByLabel('Target TOML editor');
-    await editor.fill(`${await editor.inputValue()}\n# unsaved change`);
+    await page.getByLabel('Display name').fill('Demo status board (dirty)');
 
     await expect(page.getByText('Unsaved draft', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Run target' })).toBeDisabled();
@@ -169,18 +192,12 @@ test.describe('Dataarm Dashboard', () => {
     await page.getByRole('button', { name: 'New file' }).click();
     await waitForLoadedEditor(page, 'New file target');
 
-    const editor = page.getByLabel('Target TOML editor');
-    const draft = await editor.inputValue();
-    await editor.fill(
-      draft
-        .replace('target_id = "file_watch"', 'target_id = "browser_release_notes"')
-        .replace('display_name = "File watch"', 'display_name = "Browser release notes"')
-        .replace(
-          'file_path = "/absolute/path/to/page.html"',
-          'file_path = "/tmp/dataarm/browser-release-notes.html"',
-        )
-        .replace('selector = "main"', 'selector = ".release"'),
-    );
+    await fillGuidedDraft(page, {
+      targetId: 'browser_release_notes',
+      displayName: 'Browser release notes',
+      sourceLocator: '/tmp/dataarm/browser-release-notes.html',
+      selectionSelector: '.release',
+    });
 
     await page.getByRole('button', { name: 'Save target' }).click();
 
@@ -232,17 +249,11 @@ test.describe('Dataarm Dashboard', () => {
     await page.getByRole('button', { name: 'New file' }).click();
     await waitForLoadedEditor(page, 'New file target');
 
-    const editor = page.getByLabel('Target TOML editor');
-    const draft = await editor.inputValue();
-    await editor.fill(
-      draft
-        .replace('target_id = "file_watch"', 'target_id = "delete_me"')
-        .replace('display_name = "File watch"', 'display_name = "Delete me"')
-        .replace(
-          'file_path = "/absolute/path/to/page.html"',
-          'file_path = "/tmp/dataarm/delete-me.html"',
-        ),
-    );
+    await fillGuidedDraft(page, {
+      targetId: 'delete_me',
+      displayName: 'Delete me',
+      sourceLocator: '/tmp/dataarm/delete-me.html',
+    });
     await page.getByRole('button', { name: 'Save target' }).click();
     await waitForLoadedEditor(page, 'Delete me');
 

@@ -1,6 +1,6 @@
 # Release Protocol
 
-This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub release object. The release surface for `0.1.x` is still intentionally narrow: one unsigned Apple Silicon DMG, one versioned packaging-manifest copy, and one SHA-256 manifest.
+This release flow uses the GitHub CLI (`gh`) and now ends in a public GitHub release object. The maintained public asset surface is still intentionally narrow: one unsigned Apple Silicon DMG, one versioned packaging-manifest copy, and one SHA-256 manifest.
 
 ## Phase Map
 
@@ -36,6 +36,8 @@ Run the maintained gates first:
 mise install
 npm install
 npm run sync:app-version
+npm run fieldtest:backend
+npm run fieldtest:backend -- --live
 npm run quality:all
 npm run quality:miri
 npm run package:unsigned:dmg:macos-silicon
@@ -44,6 +46,7 @@ npm run package:unsigned:dmg:macos-silicon
 Then verify:
 
 - `vendor/app-version.json` is the intended release version.
+- `CHANGELOG.md` contains a non-empty `## [X.Y.Z]` section for the intended release version, because GitHub release notes are extracted from that section.
 - `npm run verify:app-version` passes, proving the generated consumers stayed aligned.
 - `docs/developer-guide.md`, `docs/architecture.md`, `docs/hygiene.md`, [release-publishing.md](./release-publishing.md), and `scripts/README.md` describe the current embedded-runtime and release flow.
 - `vendor/dmg-packaging.json`, `vendor/quality-gates.json`, `vendor/release-publishing.json`, `vendor/runtime-dependencies.json`, and `vendor/tooling-refresh.json` match the maintained workflow and tooling posture.
@@ -61,7 +64,19 @@ git status --short
 git diff --cached --name-status
 git diff --cached --stat
 git commit -m "release-prep: capture X.Y.Z candidate"
-git checkout -b release/X.Y.Z
+```
+
+Then choose the release-branch shape deliberately:
+
+- If the capture commit still needs follow-up edits, cut `release/X.Y.Z` from the captured commit and continue there.
+- If the capture commit is already the full intended release candidate, keep `release-prep/X.Y.Z` as the salvage branch and replay that captured diff onto a clean `release/X.Y.Z` branch from `main` so the public branch can carry one truthful `release:` commit instead of merging the internal `release-prep:` message into `main`.
+
+One clean way to do the replay is:
+
+```bash
+CAPTURE_COMMIT="$(git rev-parse HEAD)"
+git checkout -b release/X.Y.Z origin/main
+git cherry-pick --no-commit "$CAPTURE_COMMIT"
 ```
 
 If `main` is already clean and truthful, skip this step and cut `release/X.Y.Z` directly from `main`.
@@ -72,7 +87,8 @@ If `main` is already clean and truthful, skip this step and cut `release/X.Y.Z` 
 # If you skipped Step 2, create the release branch now:
 # git checkout -b release/X.Y.Z
 
-# If you came from Step 2, you are already on release/X.Y.Z.
+# If you came from Step 2 and replayed the capture diff, you are now on a clean
+# release/X.Y.Z branch with the captured changes staged but uncommitted.
 confirm or edit vendor/app-version.json
 npm run sync:app-version
 git add <intended release files>

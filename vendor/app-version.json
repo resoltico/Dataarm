@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "current": "version-contract-wired",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packageName": "dataarm",
   "displayName": "Dataarm",
   "consumers": [

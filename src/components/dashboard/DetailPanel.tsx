@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import { TargetEditor } from './TargetEditor';
 import { StatusPill } from '../StatusPill';
-import { formatTimestamp, prettyJson, summarizeTarget } from '../../lib/presentation';
+import {
+  formatTimestamp,
+  prettyJson,
+  selectionLabelForDraft,
+  summarizeTarget,
+} from '../../lib/presentation';
 import { buildCompareDiffView } from '../../lib/compareHistory';
+import type { SnapshotArtifactRecord } from '../../types';
 import type { useDashboardState } from '../../hooks/useDashboardState';
 
 type StateType = ReturnType<typeof useDashboardState>;
 type DetailTab = StateType['detailTab'];
 type ArtifactTab = StateType['artifactTab'];
 
-// ─── CodeWindow ───────────────────────────────────────────────────────────────
 function CodeWindow({
   title,
   value,
@@ -27,10 +32,197 @@ function CodeWindow({
   );
 }
 
-// ─── ArtifactsTab ─────────────────────────────────────────────────────────────
+function extractionDisplayValue(record: SnapshotArtifactRecord['extractionRecord'], key: string) {
+  const value =
+    record && typeof record === 'object' && !Array.isArray(record)
+      ? (record as Record<string, unknown>)[key]
+      : null;
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : '—';
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return '—';
+}
+
+function SnapshotWorkbench({
+  currentSnapshot,
+  previousSnapshot,
+  heading,
+}: {
+  currentSnapshot: SnapshotArtifactRecord;
+  previousSnapshot: SnapshotArtifactRecord | null;
+  heading: string;
+}) {
+  const [focus, setFocus] = useState<'rendered' | 'compare' | 'extraction'>(
+    previousSnapshot ? 'compare' : 'rendered',
+  );
+  const compareDiff = previousSnapshot
+    ? buildCompareDiffView(previousSnapshot.compareText, currentSnapshot.compareText)
+    : null;
+
+  return (
+    <div className="snapshot-workbench">
+      <div className="snapshot-workbench-head">
+        <div>
+          <strong>{heading}</strong>
+          <p>
+            Dataarm is reading the canonical FFHN snapshot artifacts directly from the target
+            directory.
+          </p>
+        </div>
+        <div className="artifact-sub-tabs">
+          {[
+            ['rendered', 'Rendered'],
+            ['compare', 'Compare'],
+            ['extraction', 'Extraction'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              className={`artifact-sub-tab ${focus === id ? 'artifact-sub-tab-active' : ''}`}
+              onClick={() => {
+                setFocus(id as typeof focus);
+              }}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="changes-meta">
+        <div className="changes-meta-row">
+          <span className="changes-meta-key">Captured</span>
+          <span className="changes-meta-val">{formatTimestamp(currentSnapshot.capturedAt)}</span>
+        </div>
+        <div className="changes-meta-row">
+          <span className="changes-meta-key">Compare digest</span>
+          <span className="changes-meta-val">{currentSnapshot.compareDigestSha256}</span>
+        </div>
+        <div className="changes-meta-row">
+          <span className="changes-meta-key">Outer HTML digest</span>
+          <span className="changes-meta-val">{currentSnapshot.outerHtmlSha256}</span>
+        </div>
+      </div>
+
+      {focus === 'rendered' ? (
+        <div className="snapshot-rendered-grid">
+          <div className="rendered-preview-frame-shell">
+            <div className="code-window-title">Rendered fragment</div>
+            <iframe
+              aria-label="Rendered fragment preview"
+              className="rendered-preview-frame"
+              srcDoc={`<!doctype html><html><body>${currentSnapshot.outerHtml}</body></html>`}
+              sandbox=""
+              title="Rendered fragment preview"
+            />
+          </div>
+          <CodeWindow
+            title="Current outer.html"
+            value={currentSnapshot.outerHtml}
+            emptyMessage="No rendered outer.html artifact is available."
+          />
+        </div>
+      ) : null}
+
+      {focus === 'compare' ? (
+        <div className="changes-diff">
+          {compareDiff && previousSnapshot ? (
+            <>
+              <div className="changes-meta">
+                <div className="changes-meta-row">
+                  <span className="changes-meta-key">Comparing against</span>
+                  <span className="changes-meta-val">
+                    {formatTimestamp(previousSnapshot.capturedAt)}
+                  </span>
+                </div>
+                <div className="changes-meta-row">
+                  <span className="changes-meta-key">Stable prefix lines</span>
+                  <span className="changes-meta-val">{String(compareDiff.commonPrefixLines)}</span>
+                </div>
+                <div className="changes-meta-row">
+                  <span className="changes-meta-key">Stable suffix lines</span>
+                  <span className="changes-meta-val">{String(compareDiff.commonSuffixLines)}</span>
+                </div>
+              </div>
+
+              <CodeWindow
+                title="Previous compare.txt"
+                value={
+                  compareDiff.previousChangedLines.length > 0
+                    ? compareDiff.previousChangedLines.join('\n')
+                    : '(no changed lines on the previous side)'
+                }
+                emptyMessage="No previous compare payload is available."
+              />
+            </>
+          ) : null}
+          <CodeWindow
+            title="Current compare.txt"
+            value={
+              compareDiff
+                ? compareDiff.currentChangedLines.length > 0
+                  ? compareDiff.currentChangedLines.join('\n')
+                  : '(no changed lines on the current side)'
+                : currentSnapshot.compareText
+            }
+            emptyMessage="No current compare payload is available."
+          />
+        </div>
+      ) : null}
+
+      {focus === 'extraction' ? (
+        <>
+          <div className="changes-meta">
+            <div className="changes-meta-row">
+              <span className="changes-meta-key">Selection kind</span>
+              <span className="changes-meta-val">
+                {extractionDisplayValue(currentSnapshot.extractionRecord, 'selection_kind')}
+              </span>
+            </div>
+            <div className="changes-meta-row">
+              <span className="changes-meta-key">Selection match</span>
+              <span className="changes-meta-val">
+                {extractionDisplayValue(currentSnapshot.extractionRecord, 'selection_match')}
+              </span>
+            </div>
+            <div className="changes-meta-row">
+              <span className="changes-meta-key">Selected candidate</span>
+              <span className="changes-meta-val">
+                {extractionDisplayValue(
+                  currentSnapshot.extractionRecord,
+                  'selected_candidate_index',
+                )}
+              </span>
+            </div>
+            <div className="changes-meta-row">
+              <span className="changes-meta-key">Candidate count</span>
+              <span className="changes-meta-val">
+                {extractionDisplayValue(currentSnapshot.extractionRecord, 'candidate_count')}
+              </span>
+            </div>
+            <div className="changes-meta-row">
+              <span className="changes-meta-key">Compare basis</span>
+              <span className="changes-meta-val">
+                {extractionDisplayValue(currentSnapshot.extractionRecord, 'compare_basis')}
+              </span>
+            </div>
+          </div>
+          <CodeWindow
+            title="Current extraction.json"
+            value={prettyJson(currentSnapshot.extractionRecord)}
+            emptyMessage="No extraction record is available."
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 function ArtifactsTab({ state }: { state: StateType }) {
   const activeArtifactTab = state.artifactTab;
-
   const artifactHistory = state.document.data?.artifactHistory;
   const currentSnapshot = artifactHistory?.currentSnapshot ?? null;
   const previewStatus = state.preview.data ? prettyJson(state.preview.data.statusReport) : null;
@@ -62,6 +254,7 @@ function ArtifactsTab({ state }: { state: StateType }) {
             onClick={() => {
               state.setArtifactTab(t.id);
             }}
+            type="button"
           >
             {t.label}
           </button>
@@ -69,9 +262,14 @@ function ArtifactsTab({ state }: { state: StateType }) {
       </div>
 
       <div className="artifact-content">
-        {activeArtifactTab === 'preview' && (
+        {activeArtifactTab === 'preview' ? (
           <>
             {state.preview.error ? <p className="error">{state.preview.error}</p> : null}
+            {state.previewArtifactIssues.map((issue) => (
+              <p key={issue} className="error">
+                {issue}
+              </p>
+            ))}
             <CodeWindow
               title="Status report"
               value={previewStatus}
@@ -83,8 +281,8 @@ function ArtifactsTab({ state }: { state: StateType }) {
               emptyMessage="Preview to inspect the canonical ffhn.run_report."
             />
           </>
-        )}
-        {activeArtifactTab === 'run' && (
+        ) : null}
+        {activeArtifactTab === 'run' ? (
           <>
             {state.lastRun.error ? <p className="error">{state.lastRun.error}</p> : null}
             <CodeWindow
@@ -98,8 +296,8 @@ function ArtifactsTab({ state }: { state: StateType }) {
               emptyMessage="Live runs write last_run.json here."
             />
           </>
-        )}
-        {activeArtifactTab === 'state' && (
+        ) : null}
+        {activeArtifactTab === 'state' ? (
           <>
             {state.document.data?.artifactIssues.length ? (
               <div className="artifact-issue-list">
@@ -131,8 +329,8 @@ function ArtifactsTab({ state }: { state: StateType }) {
               emptyMessage="No current extraction record yet."
             />
           </>
-        )}
-        {activeArtifactTab === 'batch' && (
+        ) : null}
+        {activeArtifactTab === 'batch' ? (
           <>
             {state.lastBatch.error ? <p className="error">{state.lastBatch.error}</p> : null}
             <CodeWindow
@@ -146,7 +344,7 @@ function ArtifactsTab({ state }: { state: StateType }) {
               emptyMessage="No directories were skipped."
             />
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -159,7 +357,7 @@ function DraftPreviewTab({ state }: { state: StateType }) {
   if (state.preview.loading) {
     return (
       <div className="changes-tab-empty">
-        <p>Previewing the current draft against ffhn-core.</p>
+        <p>Previewing the current draft against the canonical FFHN runtime contract.</p>
       </div>
     );
   }
@@ -186,14 +384,38 @@ function DraftPreviewTab({ state }: { state: StateType }) {
     );
   }
 
+  const previewDraft = state.preview.data.draftSession.draft;
+
   return (
     <div className="changes-tab">
       <div className="outcome-card outcome-card-init">
         <div className="outcome-card-icon">DRV</div>
         <div className="outcome-card-body">
           <strong>Preview ready</strong>
-          <span>ffhn-core accepted the draft target and returned canonical preview artifacts.</span>
+          <span>
+            FFHN accepted the draft and Dataarm loaded the canonical preview artifacts into the
+            workbench.
+          </span>
         </div>
+      </div>
+
+      <div className="inline-actions">
+        <button
+          className="button-primary"
+          disabled={state.loadingTarget || state.saving}
+          onClick={state.handleSave}
+        >
+          {state.saving ? 'Saving…' : 'Save target'}
+        </button>
+        <button
+          className="button-quiet"
+          onClick={() => {
+            state.setDetailTab('config');
+          }}
+          type="button"
+        >
+          Review config
+        </button>
       </div>
 
       <div className="changes-meta">
@@ -205,7 +427,25 @@ function DraftPreviewTab({ state }: { state: StateType }) {
           <span className="changes-meta-key">Display name</span>
           <span className="changes-meta-val">{state.preview.data.displayName}</span>
         </div>
+        <div className="changes-meta-row">
+          <span className="changes-meta-key">Selection</span>
+          <span className="changes-meta-val">{selectionLabelForDraft(previewDraft)}</span>
+        </div>
       </div>
+
+      {state.previewArtifactIssues.map((issue) => (
+        <p key={issue} className="error">
+          {issue}
+        </p>
+      ))}
+
+      {state.previewSnapshot ? (
+        <SnapshotWorkbench
+          currentSnapshot={state.previewSnapshot}
+          previousSnapshot={null}
+          heading="Preview inspection"
+        />
+      ) : null}
 
       <CodeWindow
         title="Preview status report"
@@ -221,7 +461,6 @@ function DraftPreviewTab({ state }: { state: StateType }) {
   );
 }
 
-// ─── ChangesTab ───────────────────────────────────────────────────────────────
 function ChangesTab({ state }: { state: StateType }) {
   const target = state.selectedTarget;
   const artifactHistory = state.document.data?.artifactHistory;
@@ -287,6 +526,7 @@ function ChangesTab({ state }: { state: StateType }) {
             className="button-strong outcome-card-run"
             onClick={state.handleRunSelectedTarget}
             disabled={state.isBusy}
+            type="button"
           >
             {state.runningTarget ? 'Running target…' : 'Run target'}
           </button>
@@ -306,6 +546,7 @@ function ChangesTab({ state }: { state: StateType }) {
             onClick={state.handleRunSelectedTarget}
             disabled={state.isBusy || state.hasUnsavedWork}
             title={state.hasUnsavedWork ? 'Save or reset the draft first.' : undefined}
+            type="button"
           >
             {state.runningTarget ? 'Running target…' : 'Run target'}
           </button>
@@ -353,106 +594,37 @@ function ChangesTab({ state }: { state: StateType }) {
             <div>
               <strong>Baseline timeline</strong>
               <p>
-                The embedded runtime owns the stored snapshots. Dataarm reads the canonical compare
-                artifacts directly from the target directory.
+                Pick a retained baseline to inspect the rendered fragment, extraction record, and
+                compare payload without leaving this workbench.
               </p>
             </div>
           </div>
 
-          <div className="changes-meta">
-            <div className="changes-meta-row">
-              <span className="changes-meta-key">Current snapshot</span>
-              <span className="changes-meta-val">
-                {formatTimestamp(currentSnapshot.capturedAt)}
-              </span>
-            </div>
-            <div className="changes-meta-row">
-              <span className="changes-meta-key">Current compare digest</span>
-              <span className="changes-meta-val">{currentSnapshot.compareDigestSha256}</span>
-            </div>
-          </div>
-
           {snapshotHistory.length > 0 ? (
-            <>
-              <div className="history-timeline">
-                {snapshotHistory.map((snapshot, index) => {
-                  const snapshotKey = `${snapshot.capturedAt}-${snapshot.compareDigestSha256}`;
-                  return (
-                    <button
-                      key={snapshotKey}
-                      className={`history-pill ${index === selectedHistoryIndex ? 'history-pill-active' : ''}`}
-                      onClick={() => {
-                        setSelectedHistoryKey(snapshotKey);
-                      }}
-                      type="button"
-                    >
-                      {formatTimestamp(snapshot.capturedAt)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {(() => {
-                const previousSnapshot = snapshotHistory[
-                  selectedHistoryIndex
-                ] as (typeof snapshotHistory)[number];
-                const historyDiffView = buildCompareDiffView(
-                  previousSnapshot.compareText,
-                  currentSnapshot.compareText,
-                );
-
+            <div className="history-timeline">
+              {snapshotHistory.map((snapshot, index) => {
+                const snapshotKey = `${snapshot.capturedAt}-${snapshot.compareDigestSha256}`;
                 return (
-                  <div className="changes-diff">
-                    <div className="changes-meta">
-                      <div className="changes-meta-row">
-                        <span className="changes-meta-key">Comparing against</span>
-                        <span className="changes-meta-val">
-                          {formatTimestamp(previousSnapshot.capturedAt)}
-                        </span>
-                      </div>
-                      <div className="changes-meta-row">
-                        <span className="changes-meta-key">Stable prefix lines</span>
-                        <span className="changes-meta-val">
-                          {String(historyDiffView.commonPrefixLines)}
-                        </span>
-                      </div>
-                      <div className="changes-meta-row">
-                        <span className="changes-meta-key">Stable suffix lines</span>
-                        <span className="changes-meta-val">
-                          {String(historyDiffView.commonSuffixLines)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <CodeWindow
-                      title="Previous compare.txt"
-                      value={
-                        historyDiffView.previousChangedLines.length > 0
-                          ? historyDiffView.previousChangedLines.join('\n')
-                          : '(no changed lines on the previous side)'
-                      }
-                      emptyMessage="No previous changed lines."
-                    />
-                    <CodeWindow
-                      title="Current compare.txt"
-                      value={
-                        historyDiffView.currentChangedLines.length > 0
-                          ? historyDiffView.currentChangedLines.join('\n')
-                          : '(no changed lines on the current side)'
-                      }
-                      emptyMessage="No current changed lines."
-                    />
-                  </div>
+                  <button
+                    key={snapshotKey}
+                    className={`history-pill ${index === selectedHistoryIndex ? 'history-pill-active' : ''}`}
+                    onClick={() => {
+                      setSelectedHistoryKey(snapshotKey);
+                    }}
+                    type="button"
+                  >
+                    {formatTimestamp(snapshot.capturedAt)}
+                  </button>
                 );
-              })()}
-            </>
-          ) : (
-            <CodeWindow
-              title="Current compare.txt"
-              value={currentSnapshot.compareText}
-              emptyMessage="No baseline compare artifact yet."
-            />
-          )}
+              })}
+            </div>
+          ) : null}
+
+          <SnapshotWorkbench
+            currentSnapshot={currentSnapshot}
+            previousSnapshot={snapshotHistory[selectedHistoryIndex] ?? null}
+            heading="Canonical snapshot inspection"
+          />
         </div>
       ) : (
         <div className="changes-tab-empty">
@@ -465,7 +637,6 @@ function ChangesTab({ state }: { state: StateType }) {
   );
 }
 
-// ─── DetailPanel ──────────────────────────────────────────────────────────────
 export function DetailPanel({ state }: { state: StateType }) {
   const target = state.selectedTarget;
   const isDraft = state.isDraftContext;

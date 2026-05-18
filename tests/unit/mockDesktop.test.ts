@@ -24,25 +24,47 @@ describe('mock desktop backend', () => {
   it('returns templates, previews targets, and persists renamed saves', async () => {
     const mockDesktop = await loadMockDesktop();
 
-    await expect(mockDesktop.getTargetTemplateMock('http')).resolves.toMatchObject({
-      kind: 'http',
-    });
-    await expect(mockDesktop.getTargetTemplateMock('file')).resolves.toMatchObject({
-      kind: 'file',
-    });
+    const httpTemplate = await mockDesktop.getTargetTemplateMock('http');
+    expect(httpTemplate.kind).toBe('http');
+    expect(httpTemplate.draftSession.draft.targetId).toBe('website_watch');
+    expect(httpTemplate.canonicalToml).toContain('target_id = "website_watch"');
 
-    const preview = await mockDesktop.previewTargetMock(
-      'target_id = "release_notes"\ndisplay_name = "Release notes"\n',
-    );
+    const fileTemplate = await mockDesktop.getTargetTemplateMock('file');
+    expect(fileTemplate.kind).toBe('file');
+    expect(fileTemplate.draftSession.draft.targetId).toBe('file_watch');
+    expect(fileTemplate.canonicalToml).toContain('target_id = "file_watch"');
+
+    const preview = await mockDesktop.previewTargetMock({
+      rawToml: [
+        'schema_name = "ffhn.target"',
+        'schema_version = 4',
+        'target_id = "release_notes"',
+        'display_name = "Release notes"',
+        '[target]',
+        'kind = "file"',
+        'file_path = "/tmp/release-notes.html"',
+        '[fetch]',
+        'engine = "file"',
+        'max_bytes = 2000000',
+        '[selection]',
+        'kind = "css_selector"',
+        'selector = "main"',
+        'match = "single"',
+        '[compare]',
+        'basis = "text"',
+        'whitespace = "normalize"',
+        'rewrite_urls = false',
+      ].join('\n'),
+    });
     expect(preview.targetId).toBe('release_notes');
     expect(preview.displayName).toBe('Release notes');
     expect(preview.canonicalToml.endsWith('\n')).toBe(true);
-
-    const fallbackPreview = await mockDesktop.previewTargetMock('target_id = "fallback_target"\n');
-    expect(fallbackPreview.displayName).toBe('fallback_target');
-    await expect(mockDesktop.previewTargetMock('display_name = "Missing ID"\n')).rejects.toThrow(
-      'target_id is required.',
-    );
+    expect(preview.previewSnapshot?.compareText).toContain('Release notes');
+    await expect(
+      mockDesktop.previewTargetMock({
+        rawToml: 'display_name = "Missing ID"\n',
+      }),
+    ).rejects.toThrow('target_id is required.');
 
     const firstSave = await mockDesktop.saveTargetMock({
       rawToml:
@@ -67,16 +89,35 @@ describe('mock desktop backend', () => {
     await expect(mockDesktop.readTargetMock('missing_target')).rejects.toThrow(/missing_target/u);
 
     const minimalSave = await mockDesktop.saveTargetMock({
-      rawToml: 'target_id = "minimal_watch"\n',
+      rawToml: [
+        'schema_name = "ffhn.target"',
+        'schema_version = 4',
+        'target_id = "minimal_watch"',
+        'display_name = "Minimal watch"',
+        '[target]',
+        'kind = "file"',
+        'file_path = "/tmp/minimal-watch.html"',
+        '[fetch]',
+        'engine = "file"',
+        'max_bytes = 2000000',
+        '[selection]',
+        'kind = "css_selector"',
+        'selector = "main"',
+        'match = "single"',
+        '[compare]',
+        'basis = "text"',
+        'whitespace = "normalize"',
+        'rewrite_urls = false',
+      ].join('\n'),
     });
     const minimalTarget = minimalSave.workspace.targets.find(
       (target) => target.directoryName === 'minimal_watch',
     );
     expect(minimalTarget).toMatchObject({
-      displayName: 'minimal_watch',
+      displayName: 'Minimal watch',
       sourceKind: 'file',
-      sourceLocator: 'Unknown source',
-      selectionLabel: 'Selection preview unavailable',
+      sourceLocator: '/tmp/minimal-watch.html',
+      selectionLabel: 'main (single)',
       compareBasis: 'text',
     });
   });

@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dataarm desktop workbench built with Tauri.",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "packageManager": "npm@11.13.0",
   "scripts": {
@@ -33,6 +33,7 @@
     "quality:rust": "npm run hygiene:clean:safe && npm run verify:app-version && cargo fmt --all --check --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features && cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features && cargo deny --manifest-path src-tauri/Cargo.toml check && typos . && npm run hygiene:verify",
     "quality:miri": "node scripts/run-miri.mjs",
     "quality:all": "npm run quality:node && npm run test:e2e && npm run verify:frontend-coverage && npm run quality:rust",
+    "fieldtest:backend": "cargo run --manifest-path src-tauri/Cargo.toml --bin fieldtest_matrix --",
     "verify:project-status": "node scripts/verify-project-status.mjs",
     "verify:github-release": "node scripts/verify-github-release.mjs",
     "verify:quality-gates": "node scripts/verify-quality-gates.mjs",

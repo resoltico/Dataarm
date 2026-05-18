@@ -25,7 +25,7 @@ The maintained command clears disposable output before the run, executes the bro
 | Scenario                     | Coverage                                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
 | Dashboard bootstrap          | embedded workbench shell, watch-root inventory, summary panel, and primary actions        |
-| HTTP template preview        | new target template loading, raw TOML editor, and preview report rendering                |
+| HTTP template preview        | guided target authoring, canonical preview inspection, and preview report rendering       |
 | Draft truth                  | new-target draft context, selection honesty, and durable-run disablement                  |
 | Unsaved-work guard           | editor dirty state and protection against stale target or workspace runs                  |
 | Draft discard prompt         | confirmation flow before abandoning an untouched new-target draft                         |
@@ -57,3 +57,19 @@ That lane includes formatting, clippy, `cargo check`, `cargo test`, `cargo deny`
 | File target run              | persisted status and run artifacts after a real live run in a temporary watch root                              |
 | Workspace batch run          | multi-target live batch execution against a temporary watch root                                                |
 | Workspace boundary hardening | direct-child validation and traversal rejection for target-directory resolution                                 |
+
+## Release-grade field test
+
+For a broader backend shakeout that exercises the real guided-session contract, local fixture servers, deliberate operator mistakes, and optional live-web targets, run:
+
+```bash
+npm run fieldtest:backend
+```
+
+Add `-- --live` when you want the matrix to reach real public sites such as `example.com` and `rust-lang.org`:
+
+```bash
+npm run fieldtest:backend -- --live
+```
+
+This lane is intentionally outside the maintained CI/quality gate because the `--live` variant depends on public network availability and current site content.
