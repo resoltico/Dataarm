@@ -17,9 +17,9 @@ type WorkspaceStateContext = {
   beginWorkspaceUpdate: () => number;
   isCurrentWorkspaceUpdate: (updateId: number) => boolean;
   setWorkspace: (state: AsyncState<WorkspaceSnapshot>) => void;
-  setWorkspaceInput: (value: string) => void;
   setSelectedDirectoryName: (directoryName: string | null) => void;
   selectedDirectoryName: string | null;
+  setWorkspaceInput: (value: string) => void;
   setOpeningWorkspace: (opening: boolean) => void;
   setFeedback: (tone: Tone, message: string) => void;
   setActionFeedback: (feedback: ActionFeedback | null) => void;
@@ -61,15 +61,11 @@ function defaultTargetDirectoryName(snapshot: WorkspaceSnapshot) {
 }
 
 export function applyWorkspaceSnapshotToState(
-  context: Pick<
-    WorkspaceStateContext,
-    'setWorkspace' | 'setWorkspaceInput' | 'setSelectedDirectoryName'
-  >,
+  context: Pick<WorkspaceStateContext, 'setWorkspace' | 'setSelectedDirectoryName'>,
   snapshot: WorkspaceSnapshot,
   preferredDirectoryName: string | null,
 ) {
   context.setWorkspace({ loading: false, error: null, data: snapshot });
-  context.setWorkspaceInput('');
   const nextDirectoryName =
     snapshot.targets.find((target) => target.directoryName === preferredDirectoryName)
       ?.directoryName ??
@@ -146,6 +142,7 @@ export async function openWorkspaceRequestIntoState(context: WorkspaceStateConte
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
       return;
     }
+    context.setWorkspaceInput('');
     context.setFeedback('success', 'Workspace loaded.');
   } catch (error) {
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
@@ -182,6 +179,7 @@ export async function createWorkspaceFromInputIntoState(
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
       return;
     }
+    context.setWorkspaceInput('');
     context.setFeedback('success', 'Workspace created.');
   } catch (error) {
     if (!context.isCurrentWorkspaceUpdate(updateId)) {

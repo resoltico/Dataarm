@@ -279,6 +279,9 @@ describe('useDashboardState workspace and notification flows', () => {
       expect(result.current.draftToml).toContain('empty_workspace_http');
     });
 
+    act(() => {
+      result.current.setWorkspaceInput('/tmp/dataarm/typed-during-refresh');
+    });
     await act(async () => {
       await result.current.handleUpdateNotificationSettings({
         notifyWhen: 'changes_and_errors',
@@ -289,6 +292,7 @@ describe('useDashboardState workspace and notification flows', () => {
       tone: 'warning',
       message: 'System delivery is not ready on this runtime.',
     });
+    expect(result.current.workspaceInput).toBe('/tmp/dataarm/typed-during-refresh');
 
     await act(async () => {
       await result.current.handleUpdateNotificationSettings({

@@ -16,10 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tightened the desktop workbench vocabulary around target status, source kind, and run outcomes so the React surface uses one typed owner for labels, tones, and filter behavior.
 - Aligned the GitHub `quality` workflow with the maintained browser-workbench proof lane so CI now runs the same unit coverage, Playwright evidence, and frontend coverage verification contract as local `quality:all`.
 - Corrected the desktop Miri contract so the pinned seam test proves Dataarm-owned target persistence round-tripping instead of reporting a narrower read-only path.
+- Removed cached Prettier checking from the release-grade Node gate so local verification and GitHub Actions prove the same formatting contract.
+- Stopped background workspace hydrations from clearing the watch-root input field, so a late refresh can no longer erase a path while the operator is preparing a new workspace.
 
 ### Changed
 
 - Split the target editor, detail panel, and dashboard/unit test seams into workflow-owned modules so guided authoring, artifact inspection, release validation, and hook behavior no longer live in oversized mixed-responsibility files.
+- The browser-workbench wrapper scripts now resolve local CLIs directly, and the Playwright wrapper forwards CLI arguments, so targeted local reruns use the same managed environment instead of forcing full-suite debugging.
 
 ## [0.2.0] - 2026-05-18
 

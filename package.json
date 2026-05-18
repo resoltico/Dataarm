@@ -22,7 +22,7 @@
     "hygiene:clean:safe": "node scripts/clean-hygiene.mjs --mode safe",
     "hygiene:clean:rebuildable": "node scripts/clean-hygiene.mjs --mode rebuildable",
     "format": "prettier --cache --write .",
-    "format:check": "prettier --cache --check .",
+    "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -b",

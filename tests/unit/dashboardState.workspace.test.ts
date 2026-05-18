@@ -162,7 +162,7 @@ describe('dashboardState.workspace', () => {
 
     expect(applyWorkspaceSnapshotToState(context, fallbackSnapshot, null)).toBe('plain_alpha');
     expect(applyWorkspaceSnapshotToState(context, latestSnapshot, 'older')).toBe('older');
-    expect(context.setWorkspaceInput).toHaveBeenCalledWith('');
+    expect(context.setWorkspaceInput).not.toHaveBeenCalled();
   });
 
   it('hydrates the selected target or clears the editor when the workspace is empty', async () => {
@@ -202,6 +202,7 @@ describe('dashboardState.workspace', () => {
     await bootstrapWorkspaceIntoState(activeContext, () => true);
     expect(activeContext.setWorkspace).toHaveBeenCalled();
     expect(activeContext.loadTargetDocument).toHaveBeenCalledWith('release_notes', 'replace_view');
+    expect(activeContext.setWorkspaceInput).not.toHaveBeenCalled();
 
     const staleContext = makeWorkspaceContext({
       isCurrentWorkspaceUpdate: vi.fn(() => false),
@@ -242,6 +243,7 @@ describe('dashboardState.workspace', () => {
     expect(api.openWorkspace).toHaveBeenCalledWith('/tmp/dataarm/workspace');
     expect(openContext.setOpeningWorkspace).toHaveBeenNthCalledWith(1, true);
     expect(openContext.setOpeningWorkspace).toHaveBeenLastCalledWith(false);
+    expect(openContext.setWorkspaceInput).toHaveBeenCalledWith('');
     expect(openContext.setFeedback).toHaveBeenCalledWith('success', 'Workspace loaded.');
 
     const staleOpenContext = makeWorkspaceContext({
@@ -257,6 +259,7 @@ describe('dashboardState.workspace', () => {
     api.openWorkspace.mockResolvedValueOnce(snapshot);
     await openWorkspaceRequestIntoState(staleAfterHydrateOpenContext, '/tmp/dataarm/late-open');
     expect(staleAfterHydrateOpenContext.setFeedback).not.toHaveBeenCalled();
+    expect(staleAfterHydrateOpenContext.setWorkspaceInput).not.toHaveBeenCalled();
 
     const staleRejectedOpenContext = makeWorkspaceContext({
       isCurrentWorkspaceUpdate: vi.fn(() => false),
@@ -282,6 +285,7 @@ describe('dashboardState.workspace', () => {
     await createWorkspaceFromInputIntoState(createContext);
     expect(api.createWorkspace).toHaveBeenCalledWith('/tmp/dataarm/new-root');
     expect(createContext.setFeedback).toHaveBeenCalledWith('success', 'Workspace created.');
+    expect(createContext.setWorkspaceInput).toHaveBeenCalledWith('');
 
     const staleCreateContext = makeWorkspaceContext({
       workspaceInput: '/tmp/dataarm/stale-root',
@@ -298,6 +302,7 @@ describe('dashboardState.workspace', () => {
     api.createWorkspace.mockResolvedValueOnce(snapshot);
     await createWorkspaceFromInputIntoState(staleAfterHydrateCreateContext);
     expect(staleAfterHydrateCreateContext.setFeedback).not.toHaveBeenCalled();
+    expect(staleAfterHydrateCreateContext.setWorkspaceInput).not.toHaveBeenCalled();
 
     const staleRejectedCreateContext = makeWorkspaceContext({
       workspaceInput: '/tmp/dataarm/late-create-fail',
