@@ -13,7 +13,7 @@ name = "dataarm"
 path = "src/main.rs"
 
 [build-dependencies]
-tauri-build = { version = "2.6.1", features = [] }
+tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
 ffhn-core = { version = "8.1.0", git = "https://github.com/resoltico/ffhn.git", tag = "v8.1.0", package = "ffhn-core" }
