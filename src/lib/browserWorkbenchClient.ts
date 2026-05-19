@@ -2,6 +2,8 @@ import type {
   BatchRunResult,
   DesktopBootstrap,
   NotificationSettings,
+  SourceInspectionRequest,
+  SourceInspectionResult,
   TargetDocumentRecord,
   TargetMutationResult,
   TargetPreview,
@@ -93,6 +95,12 @@ export function readTargetWorkbench(directoryName: string): Promise<TargetDocume
 
 export function getTargetTemplateWorkbench(kind: TargetTemplateKind): Promise<TargetTemplate> {
   return callWorkbench('get_target_template', { kind });
+}
+
+export function inspectSourceWorkbench(
+  request: SourceInspectionRequest,
+): Promise<SourceInspectionResult> {
+  return callWorkbench('inspect_source', { request });
 }
 
 export function previewTargetWorkbench(request: TargetPreviewRequest): Promise<TargetPreview> {

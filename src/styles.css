@@ -212,14 +212,6 @@ pre {
   text-overflow: ellipsis;
 }
 
-.top-bar-workspace-path {
-  font-size: 0.7rem;
-  color: rgba(240, 244, 241, 0.5);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .top-bar-stats {
   display: flex;
   gap: 0.44rem;
@@ -1268,6 +1260,29 @@ pre {
   color: var(--ink-850);
 }
 
+.watch-preview-shell {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(23, 49, 40, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.watch-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 20rem;
+  border: 0;
+  background: #ffffff;
+}
+
+.watch-preview-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  background: transparent;
+}
+
 .inline-note-warning {
   background: rgba(168, 101, 29, 0.12);
   color: #784517;
@@ -1497,6 +1512,10 @@ pre {
 
 .draft-field-wide {
   grid-column: span 2;
+}
+
+.draft-advanced-toggle {
+  justify-self: start;
 }
 
 .draft-field-label {

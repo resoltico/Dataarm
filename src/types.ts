@@ -80,6 +80,48 @@ export type WorkspaceSummary = {
   lastRunCount: number;
 };
 
+export type WatchSchedulePreset =
+  | 'every_15_minutes'
+  | 'manual_only'
+  | 'every_5_minutes'
+  | 'hourly'
+  | 'daily'
+  | 'weekdays'
+  | 'weekends'
+  | 'custom';
+
+export type WatchAlertKind =
+  | 'any_change'
+  | 'text_appears'
+  | 'text_disappears'
+  | 'price_drops_below'
+  | 'price_changes_by'
+  | 'regex_match';
+
+export type WatchSchedule = {
+  preset: WatchSchedulePreset;
+  customExpression: string | null;
+};
+
+export type WatchAlertRule = {
+  kind: WatchAlertKind;
+  textOperand: string | null;
+  numericOperand: number | null;
+  regexPattern: string | null;
+  ignoreTextFragments: string[];
+};
+
+export type WatchProfile = {
+  schemaName: string;
+  schemaVersion: number;
+  paused: boolean;
+  folderName: string | null;
+  tags: string[];
+  schedule: WatchSchedule;
+  alertRule: WatchAlertRule;
+  delivery: NotificationDelivery;
+};
+
 export type TargetSummary = {
   directoryName: string;
   targetDirectoryPath: string;
@@ -96,6 +138,8 @@ export type TargetSummary = {
   baselinePhase: TargetBaselinePhase | null;
   lastRunOutcome: TargetRunOutcome | null;
   lastRunAt: string | null;
+  currentComparePreview: string | null;
+  watchProfile: WatchProfile;
   errorMessage: string | null;
 };
 
@@ -150,6 +194,7 @@ export type TargetDocumentRecord = {
   stateDocument: JsonValue | null;
   artifactHistory: TargetArtifactHistory | null;
   artifactIssues: string[];
+  watchProfile: WatchProfile;
   errorMessage: string | null;
 };
 
@@ -249,6 +294,23 @@ export type TargetSaveRequest = {
   previousDirectoryName?: string | null;
   draftSession?: TargetDraftSession | null;
   rawToml?: string | null;
+  watchProfile?: WatchProfile | null;
+};
+
+export type SourceInspectionRequest = {
+  kind: TargetTemplateKind;
+  sourceLocator: string;
+  fetchMethod: 'GET' | null;
+  fetchTimeoutMs: number | null;
+  fetchUserAgent: string | null;
+  fetchFollowRedirects: boolean | null;
+  fetchAccept: string | null;
+};
+
+export type SourceInspectionResult = {
+  finalUrl: string | null;
+  contentType: string | null;
+  html: string;
 };
 
 export type TargetTemplate = {

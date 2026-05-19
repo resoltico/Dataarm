@@ -94,6 +94,9 @@ export async function hydrateWorkspaceSnapshotIntoState(
         : 'replace_view';
     await context.loadTargetDocument(nextDirectoryName, loadMode);
   } else {
+    if (hydrationMode === 'preserve_view') {
+      return;
+    }
     context.clearEditor();
   }
 }
@@ -143,7 +146,7 @@ export async function openWorkspaceRequestIntoState(context: WorkspaceStateConte
       return;
     }
     context.setWorkspaceInput('');
-    context.setFeedback('success', 'Workspace loaded.');
+    context.setFeedback('success', 'Library loaded.');
   } catch (error) {
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
       return;
@@ -163,7 +166,7 @@ export async function createWorkspaceFromInputIntoState(
   }
   const path = context.workspaceInput.trim();
   if (!path) {
-    context.setFeedback('warning', 'Enter a workspace path first.');
+    context.setFeedback('warning', 'Enter a library folder path first.');
     return;
   }
 
@@ -180,7 +183,7 @@ export async function createWorkspaceFromInputIntoState(
       return;
     }
     context.setWorkspaceInput('');
-    context.setFeedback('success', 'Workspace created.');
+    context.setFeedback('success', 'Library created.');
   } catch (error) {
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
       return;

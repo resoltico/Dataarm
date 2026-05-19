@@ -56,10 +56,7 @@ export function SnapshotWorkbench({
       <div className="snapshot-workbench-head">
         <div>
           <strong>{heading}</strong>
-          <p>
-            Dataarm is reading the canonical FFHN snapshot artifacts directly from the target
-            directory.
-          </p>
+          <p>Dataarm is reading the saved check records directly from this watch.</p>
         </div>
         <div className="artifact-sub-tabs">
           {[
@@ -109,9 +106,9 @@ export function SnapshotWorkbench({
             />
           </div>
           <CodeWindow
-            title="Current outer.html"
+            title="Current rendered HTML"
             value={currentSnapshot.outerHtml}
-            emptyMessage="No rendered outer.html artifact is available."
+            emptyMessage="No rendered HTML is available."
           />
         </div>
       ) : null}
@@ -138,18 +135,18 @@ export function SnapshotWorkbench({
               </div>
 
               <CodeWindow
-                title="Previous compare.txt"
+                title="Previous saved text"
                 value={
                   compareDiff.previousChangedLines.length > 0
                     ? compareDiff.previousChangedLines.join('\n')
                     : '(no changed lines on the previous side)'
                 }
-                emptyMessage="No previous compare payload is available."
+                emptyMessage="No previous saved text is available."
               />
             </>
           ) : null}
           <CodeWindow
-            title="Current compare.txt"
+            title="Current saved text"
             value={
               compareDiff
                 ? compareDiff.currentChangedLines.length > 0
@@ -157,7 +154,7 @@ export function SnapshotWorkbench({
                   : '(no changed lines on the current side)'
                 : currentSnapshot.compareText
             }
-            emptyMessage="No current compare payload is available."
+            emptyMessage="No current saved text is available."
           />
         </div>
       ) : null}
@@ -200,7 +197,7 @@ export function SnapshotWorkbench({
             </div>
           </div>
           <CodeWindow
-            title="Current extraction.json"
+            title="Current extraction details"
             value={prettyJson(currentSnapshot.extractionRecord)}
             emptyMessage="No extraction record is available."
           />

@@ -39,7 +39,7 @@ export default function App() {
             </div>
           ) : (
             <div className="detail-placeholder">
-              <span>Select a target to view details, or create a new one.</span>
+              <span>Select a watch to view its checks and history, or add a new one.</span>
             </div>
           )}
         </div>

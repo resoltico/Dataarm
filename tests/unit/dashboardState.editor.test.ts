@@ -43,6 +43,7 @@ function makeEditorContext(
     setDocument: (state: unknown) => void;
     setDraftSession: (session: unknown) => void;
     setDraftToml: (toml: string) => void;
+    setWatchProfile: (profile: unknown) => void;
     setDirty: (dirty: boolean) => void;
     setEditorMode: (mode: string) => void;
     setDetailTab: (tab: string) => void;
@@ -65,6 +66,7 @@ function makeEditorContext(
     ) => Promise<void>;
     draftSession: TargetDocumentRecord['guidedSession'];
     draftToml: string;
+    watchProfile: TargetDocumentRecord['watchProfile'];
     workspaceSummary: ReturnType<typeof makeWorkspaceSnapshot>['summary'] | null;
     selectedDirectoryName: string | null;
     selectedTarget: ReturnType<typeof makeTarget> | null;
@@ -83,6 +85,7 @@ function makeEditorContext(
     setDocument: vi.fn(),
     setDraftSession: vi.fn(),
     setDraftToml: vi.fn(),
+    setWatchProfile: vi.fn(),
     setDirty: vi.fn(),
     setEditorMode: vi.fn(),
     setDetailTab: vi.fn(),
@@ -101,6 +104,7 @@ function makeEditorContext(
     hydrateWorkspaceSnapshot: vi.fn(async () => {}),
     draftSession: document.guidedSession,
     draftToml: document.rawToml,
+    watchProfile: document.watchProfile,
     workspaceSummary: makeWorkspaceSnapshot().summary,
     selectedDirectoryName: 'demo_status_board',
     selectedTarget: makeTarget(),
@@ -111,7 +115,7 @@ function makeEditorContext(
   };
 }
 
-function makePreviewResult(): TargetPreview {
+function makePreviewResult(overrides: Partial<TargetPreview> = {}): TargetPreview {
   const document = makeDocument();
   if (!document.guidedSession) {
     throw new Error('Expected a guided session in the preview fixture.');
@@ -125,6 +129,7 @@ function makePreviewResult(): TargetPreview {
     dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'changed' } },
     previewSnapshot: document.artifactHistory?.currentSnapshot ?? null,
     previewArtifactIssues: [],
+    ...overrides,
   };
 }
 
@@ -156,6 +161,7 @@ describe('dashboardState.editor', () => {
     expect(context.primeEditorBaseline).toHaveBeenCalledWith(
       record.guidedSession,
       record.canonicalToml,
+      record.watchProfile,
     );
 
     const staleLoadContext = makeEditorContext({
@@ -186,6 +192,9 @@ describe('dashboardState.editor', () => {
     expect(templateContext.primeEditorBaseline).toHaveBeenCalledWith(
       template.draftSession,
       template.canonicalToml,
+      expect.objectContaining({
+        schemaName: 'dataarm.watch_profile',
+      }),
     );
 
     const staleTemplateContext = makeEditorContext({
@@ -213,7 +222,7 @@ describe('dashboardState.editor', () => {
     await previewTargetIntoState(emptyContext);
     expect(emptyContext.setFeedback).toHaveBeenCalledWith(
       'warning',
-      'The target document is empty.',
+      'The watch document is empty.',
     );
 
     const previewResult = makePreviewResult();
@@ -228,7 +237,24 @@ describe('dashboardState.editor', () => {
     );
     expect(guidedContext.setFeedback).toHaveBeenCalledWith(
       'success',
-      'Preview refreshed from canonical FFHN runtime artifacts.',
+      'Section check passed. You can save this watch now.',
+    );
+
+    const ambiguousPreviewResult = makePreviewResult({
+      dryRunReport: {
+        schema_name: 'ffhn.run_report',
+        extraction: { candidate_count: 3 },
+        fetch: { final_url: 'https://example.com/releases', http_status: 200 },
+        result: { kind: 'initialized' },
+      },
+      previewSnapshot: null,
+    });
+    const ambiguousContext = makeEditorContext();
+    api.previewTarget.mockResolvedValueOnce(ambiguousPreviewResult);
+    await previewTargetIntoState(ambiguousContext);
+    expect(ambiguousContext.setFeedback).toHaveBeenCalledWith(
+      'warning',
+      'Watch setup needs changes. Dataarm could not validate this watch setup yet.',
     );
 
     const repairContext = makeEditorContext({
@@ -255,7 +281,7 @@ describe('dashboardState.editor', () => {
     await saveTargetIntoState(noWorkspaceContext);
     expect(noWorkspaceContext.setFeedback).toHaveBeenCalledWith(
       'error',
-      'Open a workspace before saving targets.',
+      'Open a library before saving watches.',
     );
 
     const saveResult = {
@@ -281,6 +307,7 @@ describe('dashboardState.editor', () => {
     expect(api.saveTarget).toHaveBeenCalledWith({
       previousDirectoryName: 'demo_status_board',
       rawToml: 'target_id = "repair"\n',
+      watchProfile: rawTomlContext.watchProfile,
     });
 
     const staleSaveContext = makeEditorContext({
@@ -355,7 +382,7 @@ describe('dashboardState.editor', () => {
     await runSelectedTargetFromState(blockedTargetContext);
     expect(blockedTargetContext.setFeedback).toHaveBeenCalledWith(
       'warning',
-      'Save or reset the draft before running the saved target.',
+      'Save or reset the draft before checking the saved watch.',
     );
 
     const notifiedRunContext = makeEditorContext();
@@ -432,7 +459,7 @@ describe('dashboardState.editor', () => {
     await runWorkspaceFromState(batchBlockedContext);
     expect(batchBlockedContext.setFeedback).toHaveBeenCalledWith(
       'warning',
-      'Save or reset the draft before running the workspace.',
+      'Save or reset the draft before checking all watches.',
     );
 
     const batchNotifiedContext = makeEditorContext();
@@ -447,7 +474,9 @@ describe('dashboardState.editor', () => {
     await runWorkspaceFromState(batchNotifiedContext);
     expect(batchNotifiedContext.setActionFeedback).toHaveBeenCalled();
 
-    const batchOutcomeContext = makeEditorContext();
+    const batchOutcomeContext = makeEditorContext({
+      selectedTarget: null,
+    });
     api.runWorkspace.mockResolvedValueOnce({
       workspace: makeWorkspaceSnapshot(),
       batchReport: { schema_name: 'ffhn.batch_run_report', entries: [] },
@@ -455,6 +484,11 @@ describe('dashboardState.editor', () => {
       notification: null,
     });
     await runWorkspaceFromState(batchOutcomeContext);
+    expect(batchOutcomeContext.hydrateWorkspaceSnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      null,
+      'preserve_view',
+    );
     expect(batchOutcomeContext.setFeedback).toHaveBeenCalledWith(
       'success',
       'Workspace batch run finished.',
@@ -489,10 +523,17 @@ describe('dashboardState.editor', () => {
     });
     expect(staleBatchContext.setLastBatch).toHaveBeenCalledTimes(1);
 
-    const failingBatchContext = makeEditorContext();
+    const failingBatchContext = makeEditorContext({
+      selectedTarget: null,
+    });
     api.runWorkspace.mockRejectedValueOnce(new Error('Batch exploded'));
     api.refreshWorkspace.mockResolvedValueOnce(makeWorkspaceSnapshot());
     await runWorkspaceFromState(failingBatchContext);
+    expect(failingBatchContext.hydrateWorkspaceSnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      null,
+      'preserve_view',
+    );
     expect(failingBatchContext.setLastBatch).toHaveBeenLastCalledWith({
       loading: false,
       error: 'Batch exploded',

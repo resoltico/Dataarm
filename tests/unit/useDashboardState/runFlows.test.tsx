@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
   deleteTarget: vi.fn(),
   getTargetTemplate: vi.fn(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn(),
   openWorkspacePath: vi.fn(),
   openWorkspace: vi.fn(),
@@ -65,7 +66,7 @@ describe('useDashboardState run flows', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'warning',
-      message: 'Save or reset the draft before running the saved target.',
+      message: 'Save or reset the draft before checking the saved watch.',
     });
 
     act(() => {
@@ -190,7 +191,7 @@ describe('useDashboardState run flows', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'warning',
-      message: 'Save or reset the draft before running the workspace.',
+      message: 'Save or reset the draft before checking all watches.',
     });
 
     act(() => {
@@ -206,7 +207,7 @@ describe('useDashboardState run flows', () => {
       skippedDirectories: [],
       notification: makeNotificationRecord({
         scopeKind: 'workspace_run',
-        title: 'Workspace changed targets.',
+        title: 'All-watch check found 1 changed watch.',
         targetDisplayName: null,
         deliveredChannels: ['in_app'],
       }),
@@ -216,7 +217,7 @@ describe('useDashboardState run flows', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'warning',
-      message: 'Workspace changed targets.',
+      message: 'All-watch check found 1 changed watch.',
     });
 
     api.runWorkspace.mockResolvedValueOnce({

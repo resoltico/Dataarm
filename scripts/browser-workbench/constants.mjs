@@ -15,7 +15,7 @@ export const BROWSER_WORKBENCH_FIXTURE_RELEASE_NOTES = path.join(
   BROWSER_WORKBENCH_FIXTURE_ROOT,
   'browser-release-notes.html',
 );
-export const BROWSER_WORKBENCH_VERSION = '2026-05-19.1';
+export const BROWSER_WORKBENCH_VERSION = '2026-05-19.2';
 
 export function browserWorkbenchSessionRoot(sessionId) {
   return path.join(BROWSER_WORKBENCH_SESSIONS_ROOT, sessionId);
@@ -25,10 +25,26 @@ export function browserWorkbenchDemoRoot(sessionId) {
   return path.join(browserWorkbenchSessionRoot(sessionId), 'demo-watch-root');
 }
 
+export function browserWorkbenchLibraryRoot(sessionId) {
+  return path.join(browserWorkbenchSessionRoot(sessionId), 'watch-library');
+}
+
+export function browserWorkbenchExamplesRoot(sessionId) {
+  return path.join(browserWorkbenchLibraryRoot(sessionId), '.dataarm', 'examples');
+}
+
 export function browserWorkbenchTemplateSessionRoot() {
   return browserWorkbenchSessionRoot(BROWSER_WORKBENCH_TEMPLATE_SESSION_ID);
 }
 
 export function browserWorkbenchTemplateDemoRoot() {
   return browserWorkbenchDemoRoot(BROWSER_WORKBENCH_TEMPLATE_SESSION_ID);
+}
+
+export function browserWorkbenchTemplateLibraryRoot() {
+  return browserWorkbenchLibraryRoot(BROWSER_WORKBENCH_TEMPLATE_SESSION_ID);
+}
+
+export function browserWorkbenchTemplateExamplesRoot() {
+  return browserWorkbenchExamplesRoot(BROWSER_WORKBENCH_TEMPLATE_SESSION_ID);
 }

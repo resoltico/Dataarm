@@ -1,33 +1,42 @@
-import './coverage';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+
 import { expect, test, type Page } from '@playwright/test';
+import './coverage';
 
 async function waitForDetailTitle(page: Page, heading: string) {
   await expect(page.locator('.detail-panel-title')).toHaveText(heading);
 }
 
-async function waitForLoadedEditor(page: Page, heading: string) {
+async function waitForSettingsEditor(page: Page, heading: string) {
   await waitForDetailTitle(page, heading);
-  await page.getByRole('button', { name: 'Config' }).click();
-  await expect(page.getByLabel('Target ID')).toBeEnabled();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveClass(
+    /detail-tab-btn-active/u,
+  );
+  await expect(page.getByLabel('Short name')).toBeEnabled();
 }
 
-async function fillGuidedDraft(
+async function revealAdvancedLibraryTools(page: Page) {
+  await page.getByRole('button', { name: 'Show advanced library tools' }).click();
+  await expect(page.getByLabel('Change library folder')).toBeVisible();
+}
+
+async function fillWatchDraft(
   page: Page,
   draft: {
-    targetId: string;
-    displayName: string;
+    watchId: string;
+    watchName: string;
     sourceLocator: string;
     selectionSelector?: string;
   },
 ) {
-  await page.getByLabel('Target ID').fill(draft.targetId);
-  await page.getByLabel('Display name').fill(draft.displayName);
+  await page.getByLabel('Short name').fill(draft.watchId);
+  await page.getByLabel('Watch name').fill(draft.watchName);
 
-  const sourceUrlField = page.getByLabel('Source URL');
-  if ((await sourceUrlField.count()) > 0) {
-    await sourceUrlField.fill(draft.sourceLocator);
+  const pageUrlField = page.getByLabel('Page URL');
+  if ((await pageUrlField.count()) > 0) {
+    await pageUrlField.fill(draft.sourceLocator);
   } else {
     await page.getByLabel('File path').fill(draft.sourceLocator);
   }
@@ -37,17 +46,28 @@ async function fillGuidedDraft(
   }
 }
 
-async function openArtifactSubTab(page: Page, label: 'Preview' | 'Last run' | 'State' | 'Batch') {
-  const artifactsTab = page.getByRole('button', { name: 'Artifacts', exact: true });
-  await artifactsTab.click();
-  await expect(artifactsTab).toHaveClass(/detail-tab-btn-active/u);
+async function choosePreviewSection(page: Page, selector: string) {
+  const frame = page.frameLocator('iframe[title="Page preview"]');
+  const target = frame.locator(selector);
+  await target.waitFor();
 
-  const subTab = page
-    .locator('.artifact-sub-tabs')
-    .getByRole('button', { name: label, exact: true });
-  await expect(subTab).toBeVisible();
-  await subTab.click();
-  await expect(subTab).toHaveClass(/artifact-sub-tab-active/u);
+  const targetBox = await target.boundingBox();
+  const overlay = page.getByLabel('Preview picker overlay');
+  const overlayBox = await overlay.boundingBox();
+  if (!targetBox || !overlayBox) {
+    throw new Error('Could not resolve preview geometry for the visual picker.');
+  }
+
+  await overlay.click({
+    position: {
+      x: targetBox.x + targetBox.width / 2 - overlayBox.x,
+      y: targetBox.y + targetBox.height / 2 - overlayBox.y,
+    },
+  });
+}
+
+async function clickPreviewOverlay(page: Page, position: { x: number; y: number }) {
+  await page.getByLabel('Preview picker overlay').click({ position });
 }
 
 async function writeFileFixture(filePath: string, body: string) {
@@ -70,156 +90,138 @@ function releaseNotesHtml(title: string, summary: string) {
 `;
 }
 
+function acceptDiscardWatchDraft(page: Page) {
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toBe('Discard the unsaved watch draft?');
+    await dialog.accept();
+  });
+}
+
 test.describe('Dataarm Dashboard', () => {
-  test('loads the embedded watch-root workbench', async ({ page }) => {
-    await page.goto('/');
-
-    await expect(page.locator('h1')).toHaveText('Target workbench');
-    await expect(page.getByRole('heading', { name: 'Targets' })).toBeVisible();
-    await expect(page.getByLabel('Workspace controls')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Run workspace' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New HTTP' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Open watch root' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Alert center' })).toBeVisible();
-    await waitForDetailTitle(page, 'Demo status board');
-    await expect(page.getByText('Baseline timeline', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Run target' })).toBeVisible();
-  });
-
-  test('loads the http target template and previews it', async ({ page }) => {
-    await page.goto('/');
-
-    await page.getByRole('button', { name: 'New HTTP' }).click();
-    await waitForLoadedEditor(page, 'New HTTP target');
-
-    await expect(page.getByLabel('Target ID')).toHaveValue('website_watch');
-    await expect(page.getByLabel('Source URL')).toHaveValue('https://example.com/');
-
-    await page.getByRole('button', { name: 'Preview target' }).click();
-
-    await expect(page.locator('.detail-tab-btn-active')).toHaveText('Preview');
-    await expect(page.getByText('Preview ready', { exact: true })).toBeVisible();
-    await expect(page.getByText('Preview status report', { exact: true })).toBeVisible();
-    await expect(page.getByText('ffhn.status_report')).toBeVisible();
-    await expect(page.getByText('ffhn.run_report')).toBeVisible();
-  });
-
-  test('surfaces malformed draft errors in the preview workbench without leaking browser-workbench internals', async ({
+  test('opens into a real first-watch draft and keeps library plumbing hidden by default', async ({
     page,
   }) => {
     await page.goto('/');
 
-    await page.getByRole('button', { name: 'New HTTP' }).click();
-    await waitForLoadedEditor(page, 'New HTTP target');
+    await expect(page.locator('h1')).toHaveText('Website watcher');
+    await waitForSettingsEditor(page, 'Add watch');
+    await expect(
+      page.getByText('Add your first page to start tracking a website section over time.'),
+    ).toBeVisible();
+    await expect(page.getByLabel('Short name')).toHaveValue('website_watch');
+    await expect(page.getByLabel('Watch name')).toHaveValue('Website watch');
+    await expect(page.getByLabel('Page URL')).toHaveValue('https://example.com/');
+    await expect(page.getByRole('button', { name: 'Save watch' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Check all watches' })).toBeDisabled();
+    await expect(page.getByLabel('Change library folder')).toHaveCount(0);
+    await expect(page.locator('.top-feedback')).toHaveCount(0);
+  });
 
-    await page.getByLabel('Target ID').fill('');
-    await page.getByRole('button', { name: 'Preview target' }).click();
+  test('surfaces malformed watch drafts without leaking browser-workbench internals', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForSettingsEditor(page, 'Add watch');
 
-    await expect(page.locator('.detail-tab-btn-active')).toHaveText('Preview');
-    await expect(page.getByText('Preview failed', { exact: true })).toBeVisible();
+    await page.getByLabel('Short name').fill('');
+    await page.getByRole('button', { name: 'Check section' }).click();
+
+    await expect(page.getByRole('button', { name: 'Watch setup', exact: true })).toHaveClass(
+      /detail-tab-btn-active/u,
+    );
+    await expect(page.getByText('Watch setup check failed')).toBeVisible();
     await expect(page.locator('.detail-panel')).toContainText(
       'contract error: target_id must not be empty',
     );
     await expect(page.getByText(/browser workbench runtime/i)).toHaveCount(0);
   });
 
-  test('enters a truthful draft context for new http targets', async ({ page }) => {
-    await page.goto('/');
-
-    await page.getByRole('button', { name: 'New HTTP' }).click();
-
-    await waitForDetailTitle(page, 'New HTTP target');
-    await expect(page.locator('.detail-tab-btn-active')).toHaveText('Config');
-    await expect(page.getByText('Loaded the http target template.')).toBeVisible();
-    await expect(page.getByText('Saved to watch root', { exact: true })).toHaveCount(0);
-    await expect(page.getByText(/authoring a new http target/i)).toBeVisible();
-    await expect(page.locator('.target-row-selected')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Run workspace' })).toBeDisabled();
-  });
-
-  test('blocks durable runs while the editor contains unsaved changes', async ({ page }) => {
-    await page.goto('/');
-    await waitForLoadedEditor(page, 'Demo status board');
-
-    await page.getByLabel('Display name').fill('Demo status board (dirty)');
-
-    await expect(page.getByText('Unsaved draft', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Run target' })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Run workspace' })).toBeDisabled();
-  });
-
-  test('asks before abandoning an untouched new-target template', async ({ page }) => {
-    await page.goto('/');
-
-    await page.getByRole('button', { name: 'New HTTP' }).click();
-
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toBe('Discard the unsaved target draft?');
-      await dialog.dismiss();
-    });
-
-    await page.getByRole('button', { name: /Demo release notes/ }).click();
-
-    await waitForDetailTitle(page, 'New HTTP target');
-  });
-
-  test('runs the whole workspace against the browser workbench backend', async ({ page }) => {
-    await page.goto('/');
-
-    await page.getByRole('button', { name: 'Run workspace' }).click();
-    await openArtifactSubTab(page, 'Batch');
-
-    await expect(page.locator('.top-feedback')).toHaveText('Workspace run found 1 changed target.');
-    await expect(page.getByText('ffhn.batch_run_report')).toBeVisible();
-    await expect(page.locator('td.col-when', { hasText: 'Not recorded' })).toHaveCount(0);
-  });
-
-  test('updates notification settings and records delivery history for meaningful runs', async ({
+  test('turns unreachable page checks into repair guidance instead of a fake ready state', async ({
     page,
   }) => {
     await page.goto('/');
+    await waitForSettingsEditor(page, 'Add watch');
 
-    await page.getByLabel('Deliver via').selectOption('both');
-    await expect(page.getByLabel('Deliver via')).toHaveValue('both');
-    await expect(page.locator('.notification-status')).toHaveText(
-      'System delivery is unavailable on this runtime.',
-    );
-    await page.getByRole('button', { name: /Demo release notes/ }).click();
-    await waitForDetailTitle(page, 'Demo release notes');
+    await fillWatchDraft(page, {
+      watchId: 'broken_page',
+      watchName: 'Broken page',
+      sourceLocator: 'http://127.0.0.1:9/unreachable',
+      selectionSelector: 'main',
+    });
 
-    await page.getByRole('button', { name: 'Run target' }).click();
+    await page.getByRole('button', { name: 'Check section' }).click();
 
-    await expect(page.locator('.top-feedback')).toHaveText(
-      'Change detected in Demo release notes.',
-    );
-    const notificationEntry = page.locator('.notification-entry').first();
-    await expect(notificationEntry).toContainText('Change detected in Demo release notes.');
-    await expect(notificationEntry).toContainText('In app');
-    await expect(notificationEntry).toContainText(
-      'System delivery is unavailable on this runtime.',
-    );
+    const setupOutcome = page.locator('.outcome-card').first();
+    await expect(setupOutcome.getByText('Could not reach the page', { exact: true })).toBeVisible();
+    await expect(
+      setupOutcome.getByText('Check the page URL or server and try again.'),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fix watch setup' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save watch' })).toHaveCount(0);
   });
 
-  test('can clear recorded notification history', async ({ page }) => {
+  test('asks before abandoning an unsaved watch draft when changing creation mode', async ({
+    page,
+  }) => {
     await page.goto('/');
+    await waitForSettingsEditor(page, 'Add watch');
 
-    await page.getByRole('button', { name: /Demo release notes/ }).click();
-    await page.getByRole('button', { name: 'Run target' }).click();
-    await expect(page.locator('.notification-entry').first()).toContainText(
-      'Change detected in Demo release notes.',
-    );
-    await page.getByRole('button', { name: 'Clear' }).click();
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toBe('Discard the unsaved watch draft?');
+      await dialog.dismiss();
+    });
 
-    await expect(page.getByText('Notification history cleared.')).toBeVisible();
-    await expect(page.locator('.notification-empty-note')).toContainText(
-      'No important alerts yet.',
-    );
+    await page.getByRole('button', { name: 'Advanced: local file' }).click();
+    await waitForSettingsEditor(page, 'Add watch');
   });
 
-  test('creates a watch root, saves a new file target, runs it through baseline capture and change detection, and switches back through recents', async ({
+  test('lets the visual picker choose the clicked section from a loaded page preview', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForSettingsEditor(page, 'Add watch');
+
+    await fillWatchDraft(page, {
+      watchId: 'office_price',
+      watchName: 'Office price',
+      sourceLocator: 'https://example.com/',
+      selectionSelector: 'main',
+    });
+
+    await page.getByRole('button', { name: 'Load page preview' }).click();
+    await clickPreviewOverlay(page, { x: 12, y: 12 });
+    await expect(page.getByLabel('CSS selector')).toHaveValue('main');
+    await choosePreviewSection(page, 'h1');
+    await expect(page.getByLabel('CSS selector')).toHaveValue(/h1/u);
+  });
+
+  test('creates a separate library from advanced settings and switches back through recents', async ({
     page,
   }, testInfo) => {
-    const workspacePath = testInfo.outputPath('browser-fixture-workspace');
+    const workspacePath = testInfo.outputPath('browser-library');
+
+    await page.goto('/');
+    await waitForSettingsEditor(page, 'Add watch');
+    await revealAdvancedLibraryTools(page);
+    await page.getByLabel('Change library folder').fill(workspacePath);
+
+    acceptDiscardWatchDraft(page);
+    await page.getByRole('button', { name: 'Create library' }).click();
+
+    await waitForSettingsEditor(page, 'Add watch');
+    await expect(page.locator('.top-bar-workspace-name')).toHaveText('browser-library');
+    await expect(page.getByRole('button', { name: 'watch-library' })).toBeVisible();
+
+    acceptDiscardWatchDraft(page);
+    await page.getByRole('button', { name: 'watch-library' }).click();
+
+    await waitForSettingsEditor(page, 'Add watch');
+    await expect(page.locator('.top-bar-workspace-name')).toHaveText('watch-library');
+  });
+
+  test('creates a local file watch, captures a baseline, records a change, and shows notification history', async ({
+    page,
+  }, testInfo) => {
     const sourcePath = testInfo.outputPath('browser-release-notes.html');
     await writeFileFixture(
       sourcePath,
@@ -227,133 +229,100 @@ test.describe('Dataarm Dashboard', () => {
     );
 
     await page.goto('/');
-    await waitForDetailTitle(page, 'Demo status board');
+    await waitForSettingsEditor(page, 'Add watch');
 
-    await page.getByLabel('Switch watch root').fill(workspacePath);
-    await expect(page.getByRole('button', { name: 'Create watch root' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Create watch root' }).click();
+    acceptDiscardWatchDraft(page);
+    await page.getByRole('button', { name: 'Advanced: local file' }).click();
+    await waitForSettingsEditor(page, 'Add local file watch');
 
-    await expect(page.getByText('Workspace created.')).toBeVisible();
-    await expect(
-      page.getByText('No targets yet. Use New HTTP or New file in the sidebar to create one.'),
-    ).toBeVisible();
-
-    await page.getByRole('button', { name: 'New file' }).click();
-    await waitForLoadedEditor(page, 'New file target');
-
-    await fillGuidedDraft(page, {
-      targetId: 'browser_release_notes',
-      displayName: 'Browser release notes',
+    await fillWatchDraft(page, {
+      watchId: 'browser_release_notes',
+      watchName: 'Browser release notes',
       sourceLocator: sourcePath,
       selectionSelector: '.release',
     });
 
-    await page.getByRole('button', { name: 'Save target' }).click();
-
-    await expect(
-      page.getByText('Target saved. Baseline artifacts were reset for a clean next run.'),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Browser release notes/ })).toBeVisible();
-    await waitForDetailTitle(page, 'Browser release notes');
-
-    await page.getByRole('button', { name: 'Run target' }).click();
-    await expect(page.locator('.top-feedback')).toHaveText(
-      'Baseline captured for Browser release notes.',
+    await page.getByLabel('Deliver through').selectOption('both');
+    await expect(page.getByLabel('Deliver through')).toHaveValue('both');
+    await expect(page.locator('.notification-status')).toHaveText(
+      'System delivery is unavailable on this runtime.',
     );
-    await expect(page.getByRole('button', { name: 'Run target' })).toBeEnabled();
+
+    await page.getByRole('button', { name: 'Check section' }).click();
+    await expect(page.getByText('Section ready')).toBeVisible();
+    await page.getByRole('button', { name: 'Save watch' }).click();
+
+    await waitForDetailTitle(page, 'Browser release notes');
+    await expect(
+      page.getByText('Watch saved. History was reset so the next check starts clean.'),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Check watch' }).click();
+    await expect(page.locator('.top-feedback')).toHaveText(
+      'First check saved for Browser release notes.',
+    );
 
     await writeFileFixture(
       sourcePath,
       releaseNotesHtml('Browser fixture release 2', 'Changed browser fixture content'),
     );
-    await page.getByRole('button', { name: 'Run target' }).click();
-    await expect(page.getByRole('button', { name: 'Run target' })).toBeEnabled();
-    await openArtifactSubTab(page, 'Last run');
+    await page.getByRole('button', { name: 'Check watch' }).click();
 
     await expect(page.locator('.top-feedback')).toHaveText(
       'Change detected in Browser release notes.',
     );
-    await expect(page.getByText('ffhn.run_report')).toBeVisible();
+    await expect(page.getByText('History timeline')).toBeVisible();
+    await page
+      .locator('.snapshot-workbench')
+      .getByRole('button', { name: 'Compare', exact: true })
+      .click();
+    await expect(page.getByText('Current saved text', { exact: true })).toBeVisible();
 
-    await page.locator('.nav-item-recent', { hasText: 'demo-watch-root' }).click();
-
-    await expect(page.getByText('Workspace loaded.')).toBeVisible();
-    await waitForDetailTitle(page, 'Demo status board');
-    await expect(page.getByRole('button', { name: /Demo release notes/ })).toBeVisible();
-  });
-
-  test('blocks target actions during a fast selection handoff and runs the newly selected target', async ({
-    page,
-  }) => {
-    await page.goto('/');
-
-    const runTarget = page.getByRole('button', { name: 'Run target' });
-    await page.getByRole('button', { name: /Demo release notes/ }).click();
-    await runTarget.click();
-
-    await waitForDetailTitle(page, 'Demo release notes');
-    await expect(page.locator('.top-feedback')).toHaveText(
-      'Change detected in Demo release notes.',
+    const notificationEntry = page.locator('.notification-entry').first();
+    await expect(notificationEntry).toContainText('Change detected in Browser release notes.');
+    await expect(notificationEntry).toContainText('In app');
+    await expect(notificationEntry).toContainText(
+      'System delivery is unavailable on this runtime.',
     );
   });
 
-  test('deletes a saved target from a user workspace after confirmation', async ({
-    page,
-  }, testInfo) => {
-    const workspacePath = testInfo.outputPath('browser-delete-workspace');
+  test('deletes a saved watch after confirmation', async ({ page }, testInfo) => {
     const sourcePath = testInfo.outputPath('delete-me.html');
     await writeFileFixture(
       sourcePath,
-      '<!doctype html><html><body><main>Delete me fixture</main></body></html>\n',
+      '<!doctype html><html><body><main><article class="release">Delete me fixture</article></main></body></html>\n',
     );
 
     await page.goto('/');
-    await waitForDetailTitle(page, 'Demo status board');
+    await waitForSettingsEditor(page, 'Add watch');
 
-    await page.getByLabel('Switch watch root').fill(workspacePath);
-    await expect(page.getByRole('button', { name: 'Create watch root' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Create watch root' }).click();
-    await expect(page.getByText('Workspace created.')).toBeVisible();
-    await expect(
-      page.getByText('No targets yet. Use New HTTP or New file in the sidebar to create one.'),
-    ).toBeVisible();
-    await page.getByRole('button', { name: 'New file' }).click();
-    await waitForLoadedEditor(page, 'New file target');
+    acceptDiscardWatchDraft(page);
+    await page.getByRole('button', { name: 'Advanced: local file' }).click();
+    await waitForSettingsEditor(page, 'Add local file watch');
 
-    await fillGuidedDraft(page, {
-      targetId: 'delete_me',
-      displayName: 'Delete me',
+    await fillWatchDraft(page, {
+      watchId: 'delete_me',
+      watchName: 'Delete me',
       sourceLocator: sourcePath,
+      selectionSelector: '.release',
     });
-    await page.getByRole('button', { name: 'Save target' }).click();
-    await waitForLoadedEditor(page, 'Delete me');
+
+    await page.getByRole('button', { name: 'Check section' }).click();
+    await expect(page.getByText('Section ready')).toBeVisible();
+    await page.getByRole('button', { name: 'Save watch' }).click();
+
+    await waitForSettingsEditor(page, 'Delete me');
 
     page.once('dialog', async (dialog) => {
       expect(dialog.message()).toBe('Delete Delete me?');
       await dialog.accept();
     });
 
-    await page.getByRole('button', { name: 'Delete target' }).click();
-
-    await expect(page.getByText('Target deleted.')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete watch' }).click();
+    await waitForSettingsEditor(page, 'Add watch');
     await expect(
-      page.getByText('No targets yet. Use New HTTP or New file in the sidebar to create one.'),
+      page.getByText('Add your first page to start tracking a website section over time.'),
     ).toBeVisible();
-  });
-
-  test('surfaces retained snapshot history and canonical compare artifacts', async ({ page }) => {
-    await page.goto('/');
-
-    await waitForDetailTitle(page, 'Demo status board');
-    await expect(page.getByText('Baseline timeline', { exact: true })).toBeVisible();
-    await expect(page.getByText('Previous compare.txt', { exact: true })).toBeVisible();
-    await expect(page.getByText('Current compare.txt', { exact: true })).toBeVisible();
-    await expect(page.getByText('Embedded ffhn-core path active.')).toBeVisible();
-
-    await openArtifactSubTab(page, 'State');
-    await expect(page.getByText('Current compare.txt', { exact: true })).toBeVisible();
-    await expect(page.getByText('Current extraction.json', { exact: true })).toBeVisible();
-    await expect(page.getByText('ffhn.extraction_record')).toBeVisible();
   });
 
   test('keeps the initial desktop workbench within the viewport without page scrolling', async ({

@@ -50,7 +50,9 @@ describe('App', () => {
     expect(screen.getByTestId('top-bar')).toBeTruthy();
     expect(screen.getByTestId('nav-sidebar')).toBeTruthy();
     expect(screen.getByTestId('target-table')).toBeTruthy();
-    expect(screen.getByText('Select a target to view details, or create a new one.')).toBeTruthy();
+    expect(
+      screen.getByText('Select a watch to view its checks and history, or add a new one.'),
+    ).toBeTruthy();
     expect(screen.queryByTestId('detail-panel')).toBeNull();
   });
 

@@ -15,16 +15,16 @@ export function DetailPanel({ state }: { state: StateType }) {
 
   const title = isDraft
     ? state.editorMode === 'http'
-      ? 'New HTTP target'
+      ? 'Add watch'
       : state.editorMode === 'file'
-        ? 'New file target'
-        : 'New target'
+        ? 'Add local file watch'
+        : 'Add watch'
     : summarizeTarget(target);
 
   const tabs: Array<{ id: DetailTab; label: string }> = [
-    { id: 'changes', label: isDraft ? 'Preview' : 'Changes' },
-    { id: 'config', label: 'Config' },
-    { id: 'artifacts', label: 'Artifacts' },
+    { id: 'changes', label: isDraft ? 'Watch setup' : 'What changed' },
+    { id: 'config', label: 'Settings' },
+    { id: 'artifacts', label: 'History' },
   ];
 
   return (
@@ -33,7 +33,7 @@ export function DetailPanel({ state }: { state: StateType }) {
         <div className="detail-panel-identity">
           <h2 className="detail-panel-title">{title}</h2>
           {!isDraft && target ? <StatusPill value={target.statusKind} /> : null}
-          {state.dirty ? <span className="meta-chip meta-chip-accent">Unsaved draft</span> : null}
+          {state.dirty ? <span className="meta-chip meta-chip-accent">Unsaved watch</span> : null}
         </div>
       </div>
 

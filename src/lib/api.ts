@@ -5,6 +5,7 @@ import {
   createWorkspaceWorkbench,
   deleteTargetWorkbench,
   getTargetTemplateWorkbench,
+  inspectSourceWorkbench,
   openTargetPathWorkbench,
   openWorkspacePathWorkbench,
   openWorkspaceWorkbench,
@@ -20,6 +21,8 @@ import type {
   BatchRunResult,
   DesktopBootstrap,
   NotificationSettings,
+  SourceInspectionRequest,
+  SourceInspectionResult,
   TargetDocumentRecord,
   TargetMutationResult,
   TargetPreview,
@@ -91,6 +94,15 @@ export async function getTargetTemplate(kind: TargetTemplateKind): Promise<Targe
     return getTargetTemplateWorkbench(kind);
   }
   return invoke('get_target_template', { kind });
+}
+
+export async function inspectSource(
+  request: SourceInspectionRequest,
+): Promise<SourceInspectionResult> {
+  if (shouldUseBrowserWorkbenchBackend()) {
+    return inspectSourceWorkbench(request);
+  }
+  return invoke('inspect_source', { request });
 }
 
 export async function previewTarget(request: TargetPreviewRequest): Promise<TargetPreview> {

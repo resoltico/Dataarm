@@ -4,26 +4,26 @@ import { DraftSection, Field } from './shared';
 export function CompareSection({ draft, state }: { draft: GuidedDraft; state: TargetEditorState }) {
   return (
     <DraftSection
-      title="Compare"
-      subtitle="The compare contract controls which projection becomes the canonical change payload."
+      title="Change tracking"
+      subtitle="Choose how Dataarm should normalize the selected section before it compares runs."
     >
-      <Field label="Compare basis">
+      <Field label="Compare using">
         <select
-          aria-label="Compare basis"
+          aria-label="Compare using"
           value={draft.compareBasis}
           onChange={(event) => {
             state.setDraftField('compareBasis', event.target.value as typeof draft.compareBasis);
           }}
         >
-          <option value="text">text</option>
-          <option value="inner_html">inner_html</option>
-          <option value="outer_html">outer_html</option>
+          <option value="text">Plain text</option>
+          <option value="inner_html">Section HTML</option>
+          <option value="outer_html">Section plus wrapper</option>
         </select>
       </Field>
       {draft.compareBasis === 'text' ? (
-        <Field label="Whitespace policy">
+        <Field label="Whitespace">
           <select
-            aria-label="Whitespace policy"
+            aria-label="Whitespace"
             value={draft.compareWhitespace ?? 'normalize'}
             onChange={(event) => {
               state.setDraftField(
@@ -32,8 +32,8 @@ export function CompareSection({ draft, state }: { draft: GuidedDraft; state: Ta
               );
             }}
           >
-            <option value="normalize">normalize</option>
-            <option value="preserve">preserve</option>
+            <option value="normalize">Normalize spacing</option>
+            <option value="preserve">Keep original spacing</option>
           </select>
         </Field>
       ) : null}
@@ -49,9 +49,9 @@ export function CompareSection({ draft, state }: { draft: GuidedDraft; state: Ta
           <option value="true">Rewrite URLs</option>
         </select>
       </Field>
-      <Field label="Snapshot history limit">
+      <Field label="Saved history items">
         <input
-          aria-label="Snapshot history limit"
+          aria-label="Saved history items"
           min={1}
           type="number"
           value={String(draft.storageHistoryLimit)}

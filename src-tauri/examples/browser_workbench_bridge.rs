@@ -6,12 +6,12 @@ mod logic;
 mod models;
 
 use crate::logic::{
-    execute_target_run, execute_workspace_run, get_target_template_logic, inventory_targets,
-    persist_target_document, preview_target_logic, read_target_from_workspace,
+    execute_target_run, execute_workspace_run, get_target_template_logic, inspect_source_logic,
+    inventory_targets, persist_target_document, preview_target_logic, read_target_from_workspace,
 };
 use crate::models::{
-    DesktopAppInfo, TargetPreviewRequest, TargetSaveRequest, TargetTemplate, WorkspaceSnapshot,
-    WorkspaceSource, WorkspaceSummary,
+    DesktopAppInfo, SourceInspectionRequest, TargetPreviewRequest, TargetSaveRequest,
+    TargetTemplate, WorkspaceSnapshot, WorkspaceSource, WorkspaceSummary,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -34,12 +34,15 @@ enum BridgeRequest {
     GetTargetTemplate {
         kind: String,
     },
+    InspectSource {
+        request: Box<SourceInspectionRequest>,
+    },
     PreviewTarget {
-        request: TargetPreviewRequest,
+        request: Box<TargetPreviewRequest>,
     },
     SaveTarget {
         workspace_path: String,
-        request: TargetSaveRequest,
+        request: Box<TargetSaveRequest>,
     },
     RunTarget {
         workspace_path: String,
@@ -152,13 +155,14 @@ fn dispatch(request: BridgeRequest) -> Result<Value, String> {
             directory_name.as_str(),
         )?),
         BridgeRequest::GetTargetTemplate { kind } => encode(get_target_template_logic(kind)?),
-        BridgeRequest::PreviewTarget { request } => encode(preview_target_logic(request)?),
+        BridgeRequest::InspectSource { request } => encode(inspect_source_logic(*request)?),
+        BridgeRequest::PreviewTarget { request } => encode(preview_target_logic(*request)?),
         BridgeRequest::SaveTarget {
             workspace_path,
             request,
         } => {
             let workspace = Path::new(workspace_path.as_str());
-            let directory_name = persist_target_document(workspace, &request)?;
+            let directory_name = persist_target_document(workspace, request.as_ref())?;
             encode(SavePayload {
                 directory_name,
                 inventory: inventory_payload(workspace, WorkspaceSource::User)?,

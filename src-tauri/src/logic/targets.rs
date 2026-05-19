@@ -4,19 +4,22 @@ mod storage;
 use super::runtime_artifacts::{
     load_current_snapshot_artifact_by_convention, load_target_artifact_history,
 };
+use super::watch_profile::{default_watch_profile, load_watch_profile, persist_watch_profile};
 use super::workbench_fixtures::{file_target_template, http_target_template};
 use super::workspace::{
     canonical_target_toml, current_workspace, direct_child_directory_name, inventory_targets,
     read_target_document, resolve_existing_target_directory, workspace_snapshot,
 };
 use crate::models::{
-    AppState, SkippedDirectory, TargetDocumentRecord, TargetMutationResult, TargetPreview,
-    TargetPreviewRequest, TargetSaveRequest, TargetTemplate, WorkspaceSnapshot,
+    AppState, SkippedDirectory, SourceInspectionRequest, SourceInspectionResult,
+    TargetDocumentRecord, TargetMutationResult, TargetPreview, TargetPreviewRequest,
+    TargetSaveRequest, TargetTemplate, WorkspaceSnapshot,
 };
 use drafts::{raw_toml_from_preview_request, raw_toml_from_save_request, target_draft_session};
 use ffhn_core::{self, TargetDocument, TargetId};
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 use storage::{
     materialize_target_document, read_optional_json_value, read_optional_state_document,
     reset_target_runtime_artifacts,
@@ -38,6 +41,7 @@ pub(crate) fn read_target_from_workspace(
 ) -> Result<TargetDocumentRecord, String> {
     let target_directory = resolve_existing_target_directory(workspace, directory_name)?;
     let target_file = target_directory.join("target.toml");
+    let watch_profile = load_watch_profile(&target_directory)?;
     let raw_toml = fs::read_to_string(&target_file)
         .map_err(|error| format!("Failed to read {}: {error}", target_file.display()))?;
     let parsed_target = read_target_document(&raw_toml);
@@ -103,6 +107,7 @@ pub(crate) fn read_target_from_workspace(
         state_document,
         artifact_history,
         artifact_issues,
+        watch_profile,
         error_message: match target_paths {
             Ok(_) => parsed_target_error,
             Err(error) => Some(error.to_string()),
@@ -257,6 +262,13 @@ pub(crate) fn persist_target_document(
             next_target_directory.join("target.toml").display()
         )
     })?;
+    persist_watch_profile(
+        &next_target_directory,
+        request
+            .watch_profile
+            .as_ref()
+            .unwrap_or(&default_watch_profile()),
+    )?;
 
     if let Some(previous_directory_name) = request.previous_directory_name.as_deref()
         && previous_directory_name != next_directory_name
@@ -271,6 +283,29 @@ pub(crate) fn persist_target_document(
     }
 
     Ok(next_directory_name)
+}
+
+pub(crate) fn inspect_source_logic(
+    request: SourceInspectionRequest,
+) -> Result<SourceInspectionResult, String> {
+    let locator = request.source_locator.trim();
+    if locator.is_empty() {
+        return Err("Source inspection requires a page URL or file path.".to_owned());
+    }
+
+    match request.kind.as_str() {
+        "file" => {
+            let html = fs::read_to_string(locator)
+                .map_err(|error| format!("Failed to read source file {locator}: {error}"))?;
+            Ok(SourceInspectionResult {
+                final_url: None,
+                content_type: Some("text/html".to_owned()),
+                html,
+            })
+        }
+        "http" => inspect_http_source(&request, locator),
+        other => Err(format!("Unsupported source inspection kind: {other}")),
+    }
 }
 
 pub(crate) fn execute_workspace_run(
@@ -318,3 +353,64 @@ pub(crate) fn execute_workspace_run(
 
 #[cfg(test)]
 mod tests;
+
+fn inspect_http_source(
+    request: &SourceInspectionRequest,
+    locator: &str,
+) -> Result<SourceInspectionResult, String> {
+    let method = request.fetch_method.as_deref().unwrap_or("GET");
+    if method != "GET" {
+        return Err(format!(
+            "Source inspection currently supports GET requests only, not {method}."
+        ));
+    }
+
+    let redirect = if request.fetch_follow_redirects.unwrap_or(true) {
+        reqwest::redirect::Policy::limited(10)
+    } else {
+        reqwest::redirect::Policy::none()
+    };
+
+    let client = reqwest::blocking::Client::builder()
+        .redirect(redirect)
+        .timeout(Duration::from_millis(
+            request.fetch_timeout_ms.unwrap_or(15_000),
+        ))
+        .user_agent(
+            request
+                .fetch_user_agent
+                .as_deref()
+                .unwrap_or("Dataarm/source-inspector"),
+        )
+        .build()
+        .map_err(|error| format!("Failed to build the source-inspection client: {error}"))?;
+
+    let mut request_builder = client.get(locator);
+    if let Some(accept) = request
+        .fetch_accept
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        request_builder = request_builder.header(reqwest::header::ACCEPT, accept);
+    }
+
+    let response = request_builder
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|error| format!("Failed to fetch {locator}: {error}"))?;
+    let final_url = Some(response.url().as_str().to_owned());
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
+    let html = response
+        .text()
+        .map_err(|error| format!("Failed to read {locator}: {error}"))?;
+
+    Ok(SourceInspectionResult {
+        final_url,
+        content_type,
+        html,
+    })
+}

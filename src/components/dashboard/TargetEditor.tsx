@@ -1,4 +1,10 @@
-import { formatTimestamp, selectionLabelForDraft } from '../../lib/presentation';
+import {
+  formatCompareBasisLabel,
+  formatTimestamp,
+  schedulePresetLabel,
+  selectionLabelForDraft,
+} from '../../lib/presentation';
+import { previewCanBeSaved } from '../../lib/watchSetupAssessment';
 import type { useDashboardState } from '../../hooks/useDashboardState';
 import { GuidedEditor } from './targetEditor/GuidedEditor';
 import { RepairEditor } from './targetEditor/RepairEditor';
@@ -10,34 +16,52 @@ export function TargetEditor({ state }: { state: StateType }) {
   const document = state.document.data;
   const draft = state.guidedDraft;
   const useRepairMode = state.repairMode || draft == null;
+  const previewCandidateCount = (
+    state.preview.data?.dryRunReport as
+      | { extraction?: { candidateCount?: number; candidate_count?: number } }
+      | undefined
+  )?.extraction?.candidateCount;
+  const previewCandidateCountFallback = (
+    state.preview.data?.dryRunReport as
+      | { extraction?: { candidateCount?: number; candidate_count?: number } }
+      | undefined
+  )?.extraction?.candidate_count;
+  const matchedSectionCount = previewCandidateCount ?? previewCandidateCountFallback ?? null;
+  const draftNeedsValidatedSection = !target && !previewCanBeSaved(state.preview.data);
 
   return (
     <div className="editor-shell">
       {document?.errorMessage ? <p className="error">{document.errorMessage}</p> : null}
       {state.document.error ? <p className="error">{state.document.error}</p> : null}
       {state.loadingTarget ? (
-        <p className="inline-note">Loading the canonical target document for this selection.</p>
+        <p className="inline-note">Loading the saved watch setup for this selection.</p>
       ) : null}
 
       <div className="editor-toolbar">
         {target ? (
           <div className="editor-metadata">
-            <span>Directory: {target.directoryName}</span>
-            <span>Target ID: {target.targetId ?? 'Pending parse'}</span>
-            <span>Last run: {formatTimestamp(target.lastRunAt)}</span>
+            <span>Page: {target.sourceLocator ?? '—'}</span>
+            <span>Section: {target.selectionLabel ?? '—'}</span>
+            <span>Last checked: {formatTimestamp(target.lastRunAt)}</span>
+            <span>
+              Check every: {schedulePresetLabel(state.watchProfile ?? target.watchProfile)}
+            </span>
+            <span>Compare using: {formatCompareBasisLabel(target.compareBasis)}</span>
           </div>
         ) : (
           <div className="editor-metadata">
             <span>
               Mode:{' '}
               {state.editorMode === 'existing'
-                ? 'editing a saved target'
-                : `authoring a new ${state.editorMode} target`}
+                ? 'editing a saved watch'
+                : state.editorMode === 'http'
+                  ? 'adding a website watch'
+                  : 'adding a local file watch'}
             </span>
             <span>
               {draft
-                ? `Guided contract: ${selectionLabelForDraft(draft)}`
-                : 'Preview before saving to validate the target contract.'}
+                ? `Selected section: ${selectionLabelForDraft(draft)}`
+                : 'Preview before saving to validate the watch setup.'}
             </span>
           </div>
         )}
@@ -46,14 +70,21 @@ export function TargetEditor({ state }: { state: StateType }) {
             onClick={state.handlePreview}
             disabled={state.loadingTarget || state.preview.loading || state.saving}
           >
-            {state.preview.loading ? 'Previewing…' : 'Preview target'}
+            {state.preview.loading ? 'Checking section…' : 'Check section'}
           </button>
           <button
             className="button-primary"
             onClick={state.handleSave}
-            disabled={state.loadingTarget || state.saving}
+            disabled={state.loadingTarget || state.saving || draftNeedsValidatedSection}
+            title={
+              draftNeedsValidatedSection
+                ? matchedSectionCount != null && matchedSectionCount > 1
+                  ? 'Refine the section until exactly one match remains before saving this watch.'
+                  : 'Run a successful section check before saving this watch.'
+                : undefined
+            }
           >
-            {state.saving ? 'Saving…' : 'Save target'}
+            {state.saving ? 'Saving…' : 'Save watch'}
           </button>
           {target ? (
             <button
@@ -62,13 +93,13 @@ export function TargetEditor({ state }: { state: StateType }) {
               disabled={state.loadingTarget || state.runningTarget || state.hasUnsavedWork}
               title={
                 state.loadingTarget
-                  ? 'Wait for the selected target to finish loading.'
+                  ? 'Wait for the selected watch to finish loading.'
                   : state.hasUnsavedWork
-                    ? 'Save or reset the draft before running the saved target.'
+                    ? 'Save or reset the draft before checking the saved watch.'
                     : undefined
               }
             >
-              {state.runningTarget ? 'Running…' : 'Run target'}
+              {state.runningTarget ? 'Checking…' : 'Check now'}
             </button>
           ) : null}
         </div>
@@ -77,11 +108,11 @@ export function TargetEditor({ state }: { state: StateType }) {
       <div className="editor-utility-row">
         <div className="inline-actions editor-secondary-actions">
           <button onClick={state.handleResetDraft} disabled={state.loadingTarget || !state.dirty}>
-            Reset draft
+            Reset changes
           </button>
           {target ? (
             <button onClick={state.handleOpenSelectedTargetPath} disabled={state.loadingTarget}>
-              Open folder
+              Open in Finder
             </button>
           ) : null}
         </div>
@@ -91,7 +122,7 @@ export function TargetEditor({ state }: { state: StateType }) {
             onClick={state.handleDeleteSelectedTarget}
             disabled={state.loadingTarget}
           >
-            Delete target
+            Delete watch
           </button>
         ) : null}
       </div>

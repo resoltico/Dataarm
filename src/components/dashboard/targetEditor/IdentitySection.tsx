@@ -11,41 +11,41 @@ export function IdentitySection({
 }) {
   return (
     <DraftSection
-      title="Identity"
-      subtitle="These fields anchor the durable target directory and workbench labeling."
+      title="Watch details"
+      subtitle="Name the watch clearly so you can recognize it in the dashboard and history."
     >
-      <Field label="Target ID">
+      <Field label="Short name">
         <input
-          aria-label="Target ID"
+          aria-label="Short name"
           value={draft.targetId}
           onChange={(event) => {
             state.setDraftField('targetId', event.target.value);
           }}
         />
       </Field>
-      <Field label="Display name">
+      <Field label="Watch name">
         <input
-          aria-label="Display name"
+          aria-label="Watch name"
           value={draft.displayName}
           onChange={(event) => {
             state.setDraftField('displayName', event.target.value);
           }}
         />
       </Field>
-      <Field label="Enabled">
+      <Field label="Active">
         <select
-          aria-label="Enabled"
+          aria-label="Active"
           value={draft.enabled ? 'true' : 'false'}
           onChange={(event) => {
             state.setDraftField('enabled', event.target.value === 'true');
           }}
         >
-          <option value="true">Enabled</option>
-          <option value="false">Disabled</option>
+          <option value="true">Active</option>
+          <option value="false">Paused</option>
         </select>
       </Field>
       <div className="draft-summary-card">
-        <strong>Current extraction contract</strong>
+        <strong>Current watch summary</strong>
         <span>{selectionLabelForDraft(draft)}</span>
         <span>{sourceLabelForDraft(draft)}</span>
       </div>

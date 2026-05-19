@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { runTarget } from '../lib/api';
 import type {
   ActionFeedback,
   BatchRunResult,
@@ -10,15 +11,19 @@ import type {
   TargetPreview,
   TargetRunResult,
   TargetTemplateKind,
+  WatchProfile,
   WorkspaceSnapshot,
 } from '../types';
 import {
   addDraftCanonicalizer,
+  cloneWatchProfile,
   cloneDraftSession,
   createFeedback,
   dashboardStats,
+  defaultWatchProfile,
   editorSignature,
   initialState,
+  normalizeDraftForSelectionKind,
   removeDraftCanonicalizer,
   updateDraftCanonicalizer,
   updateDraftField,
@@ -45,12 +50,20 @@ import {
   startNewTargetAction,
   updateNotificationSettingsAction,
 } from './dashboardState.actions';
-import { loadTargetDocumentIntoState, type TargetDocumentLoadMode } from './dashboardState.editor';
+import {
+  loadNewTargetTemplateIntoState,
+  loadTargetDocumentIntoState,
+  type TargetDocumentLoadMode,
+} from './dashboardState.editor';
 import {
   bootstrapWorkspaceIntoState,
   hydrateWorkspaceSnapshotIntoState,
   type WorkspaceHydrationMode,
 } from './dashboardState.workspace';
+import {
+  activeScheduledWatchDirectoryName,
+  runDueScheduledWatches,
+} from './dashboardState.scheduler';
 
 export { errorMessage } from './dashboardState.helpers';
 
@@ -70,6 +83,10 @@ export function useDashboardState() {
   const [editorBaselineSession, setEditorBaselineSession] = useState<TargetDraftSession | null>(
     null,
   );
+  const [watchProfile, setWatchProfile] = useState<WatchProfile | null>(null);
+  const [editorBaselineWatchProfile, setEditorBaselineWatchProfile] = useState<WatchProfile | null>(
+    null,
+  );
   const [draftToml, setDraftToml] = useState('');
   const [editorBaselineToml, setEditorBaselineToml] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -83,6 +100,7 @@ export function useDashboardState() {
   const [artifactTab, setArtifactTab] = useState<ArtifactTab>('preview');
   const documentLoadSequence = useRef(0);
   const workspaceUpdateSequence = useRef(0);
+  const scheduledRunsInFlight = useRef(new Set<string>());
 
   const workspaceTargets = workspace.data?.targets;
   const targets = useMemo(() => workspaceTargets ?? [], [workspaceTargets]);
@@ -137,10 +155,14 @@ export function useDashboardState() {
     setActionFeedback(createFeedback(tone, message));
   }
 
-  function syncDirty(nextSession: TargetDraftSession | null, nextToml: string) {
+  function syncDirty(
+    nextSession: TargetDraftSession | null,
+    nextToml: string,
+    nextWatchProfile: WatchProfile | null,
+  ) {
     setDirty(
-      editorSignature(nextSession, nextToml) !==
-        editorSignature(editorBaselineSession, editorBaselineToml),
+      editorSignature(nextSession, nextToml, nextWatchProfile) !==
+        editorSignature(editorBaselineSession, editorBaselineToml, editorBaselineWatchProfile),
     );
   }
 
@@ -156,7 +178,7 @@ export function useDashboardState() {
   ) {
     setDraftSession(nextSession);
     setDraftToml(nextToml);
-    syncDirty(nextSession, nextToml);
+    syncDirty(nextSession, nextToml, watchProfile);
     if (options?.clearInspector ?? true) {
       clearInspector();
     }
@@ -167,6 +189,8 @@ export function useDashboardState() {
     setDocument(initialState(false));
     setDraftSession(null);
     setEditorBaselineSession(null);
+    setWatchProfile(null);
+    setEditorBaselineWatchProfile(null);
     setDraftToml('');
     setEditorBaselineToml('');
     setDirty(false);
@@ -176,10 +200,16 @@ export function useDashboardState() {
     clearInspector();
   }
 
-  function primeEditorBaseline(nextSession: TargetDraftSession | null, nextToml: string) {
+  function primeEditorBaseline(
+    nextSession: TargetDraftSession | null,
+    nextToml: string,
+    nextWatchProfile: WatchProfile | null,
+  ) {
     setEditorBaselineSession(cloneDraftSession(nextSession));
+    setEditorBaselineWatchProfile(cloneWatchProfile(nextWatchProfile));
     setEditorBaselineToml(nextToml);
     setDraftSession(cloneDraftSession(nextSession));
+    setWatchProfile(cloneWatchProfile(nextWatchProfile));
     setDraftToml(nextToml);
     setDirty(false);
   }
@@ -191,14 +221,14 @@ export function useDashboardState() {
 
     return window.confirm(
       editorMode === 'existing'
-        ? 'Discard the unsaved target changes?'
-        : 'Discard the unsaved target draft?',
+        ? 'Discard the unsaved watch changes?'
+        : 'Discard the unsaved watch draft?',
     );
   }
 
   function updateRepairToml(nextToml: string) {
     setDraftToml(nextToml);
-    syncDirty(draftSession, nextToml);
+    syncDirty(draftSession, nextToml, watchProfile);
     clearInspector();
   }
 
@@ -211,6 +241,13 @@ export function useDashboardState() {
       draft: updater(draftSession.draft),
     };
     applyEditorState(nextSession, draftToml);
+  }
+
+  function updateWatchProfile(updater: (profile: WatchProfile) => WatchProfile) {
+    const nextProfile = updater(watchProfile ?? defaultWatchProfile());
+    setWatchProfile(nextProfile);
+    syncDirty(draftSession, draftToml, nextProfile);
+    clearInspector();
   }
 
   function setDraftField<K extends keyof TargetDraft>(field: K, value: TargetDraft[K]) {
@@ -269,6 +306,7 @@ export function useDashboardState() {
     clearInspector,
     primeEditorBaseline,
     applyEditorState,
+    setWatchProfile,
     setPreview,
     setLastRun,
     setLastBatch,
@@ -280,6 +318,7 @@ export function useDashboardState() {
     hydrateWorkspaceSnapshot,
     draftSession,
     draftToml,
+    watchProfile,
     workspaceSummary,
     selectedDirectoryName,
     selectedTarget,
@@ -306,6 +345,49 @@ export function useDashboardState() {
     };
   }, []);
 
+  const schedulerTick = useEffectEvent(() => {
+    if (
+      workspace.loading ||
+      openingWorkspace ||
+      hasUnsavedWork ||
+      runningWorkspace ||
+      runningTarget
+    ) {
+      return;
+    }
+
+    runDueScheduledWatches(
+      {
+        beginWorkspaceUpdate,
+        isCurrentWorkspaceUpdate,
+        scheduledRunsInFlight: scheduledRunsInFlight.current,
+        runTargetCommand: runTarget,
+        hydrateWorkspaceSnapshot,
+        selectedTargetDirectoryName: activeScheduledWatchDirectoryName(
+          editorMode,
+          selectedDirectoryName,
+        ),
+        selectedDirectoryName,
+        editorMode,
+        loadTargetDocument,
+        setActionFeedback,
+      },
+      targets,
+    );
+  });
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      schedulerTick();
+    }, 60_000);
+    queueMicrotask(() => {
+      schedulerTick();
+    });
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
   const actionContext: DashboardActionsContext = {
     workspaceLoading: workspace.loading,
     openingWorkspace,
@@ -325,8 +407,10 @@ export function useDashboardState() {
     setDirty,
     applyEditorState,
     cloneBaselineSession: () => cloneDraftSession(editorBaselineSession),
+    cloneBaselineWatchProfile: () => cloneWatchProfile(editorBaselineWatchProfile),
     editorBaselineToml,
     updateGuidedDraft,
+    updateWatchProfile,
     addCanonicalizerToDraft: () => {
       updateGuidedDraft(addDraftCanonicalizer);
     },
@@ -345,6 +429,30 @@ export function useDashboardState() {
   async function handleStartNewTarget(kind: TargetTemplateKind) {
     await startNewTargetAction(actionContext, kind);
   }
+
+  const seedEmptyLibraryDraft = useEffectEvent(() => {
+    void loadNewTargetTemplateIntoState(newTargetContext, 'http', 'silent');
+  });
+
+  useEffect(() => {
+    if (workspace.loading || openingWorkspace) {
+      return;
+    }
+    if (workspace.data == null || workspace.data.targets.length > 0) {
+      return;
+    }
+    if (selectedDirectoryName != null || editorMode !== 'existing' || draftSession != null) {
+      return;
+    }
+    seedEmptyLibraryDraft();
+  }, [
+    draftSession,
+    editorMode,
+    openingWorkspace,
+    selectedDirectoryName,
+    workspace.data,
+    workspace.loading,
+  ]);
 
   async function handlePreview() {
     await previewTargetAction(actionContext);
@@ -410,6 +518,15 @@ export function useDashboardState() {
     setSelectionMatchAction(actionContext, match);
   }
 
+  function applyPreviewSelection(selectionSelector: string) {
+    updateGuidedDraft((draft) => ({
+      ...normalizeDraftForSelectionKind(draft, 'css_selector'),
+      selectionMatch: 'single',
+      selectionIndex: null,
+      selectionSelector,
+    }));
+  }
+
   function addCanonicalizer() {
     actionContext.addCanonicalizerToDraft();
   }
@@ -442,6 +559,7 @@ export function useDashboardState() {
     document,
     draftSession,
     guidedDraft,
+    watchProfile,
     repairMode,
     draftToml,
     dirty,
@@ -468,7 +586,9 @@ export function useDashboardState() {
     setDraftKind,
     setSelectionKind,
     setSelectionMatch,
+    applyPreviewSelection,
     updateGuidedDraft,
+    updateWatchProfile,
     addCanonicalizer,
     updateCanonicalizer,
     removeCanonicalizer,

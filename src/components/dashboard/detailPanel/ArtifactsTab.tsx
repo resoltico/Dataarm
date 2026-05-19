@@ -22,10 +22,10 @@ export function ArtifactsTab({ state }: { state: StateType }) {
     : null;
 
   const artifactTabs: Array<{ id: ArtifactTab; label: string }> = [
-    { id: 'preview', label: 'Preview' },
-    { id: 'run', label: 'Last run' },
-    { id: 'state', label: 'State' },
-    { id: 'batch', label: 'Batch' },
+    { id: 'preview', label: 'Setup check' },
+    { id: 'run', label: 'Latest check' },
+    { id: 'state', label: 'Saved state' },
+    { id: 'batch', label: 'All-watch checks' },
   ];
 
   return (
@@ -55,14 +55,14 @@ export function ArtifactsTab({ state }: { state: StateType }) {
               </p>
             ))}
             <CodeWindow
-              title="Status report"
+              title="Setup status"
               value={previewStatus}
-              emptyMessage="Preview to inspect the canonical ffhn.status_report."
+              emptyMessage="Check the watch setup to inspect the status report."
             />
             <CodeWindow
-              title="Dry-run report"
+              title="Setup report"
               value={previewRun}
-              emptyMessage="Preview to inspect the canonical ffhn.run_report."
+              emptyMessage="Check the watch setup to inspect the run report."
             />
           </>
         ) : null}
@@ -70,14 +70,14 @@ export function ArtifactsTab({ state }: { state: StateType }) {
           <>
             {state.lastRun.error ? <p className="error">{state.lastRun.error}</p> : null}
             <CodeWindow
-              title="Run status report"
+              title="Latest status report"
               value={lastRunStatus ?? persistedStatus}
-              emptyMessage="Run a target or load one with status output."
+              emptyMessage="Check a watch to inspect the latest status report."
             />
             <CodeWindow
-              title="Last run snapshot"
+              title="Latest run snapshot"
               value={lastRunReport ?? prettyJson(state.document.data?.lastRunSnapshot)}
-              emptyMessage="Live runs write last_run.json here."
+              emptyMessage="The latest check snapshot appears here."
             />
           </>
         ) : null}
@@ -93,24 +93,24 @@ export function ArtifactsTab({ state }: { state: StateType }) {
               </div>
             ) : null}
             <CodeWindow
-              title="State document"
+              title="Saved state"
               value={stateDocument}
-              emptyMessage="No persisted state document yet."
+              emptyMessage="No saved state yet."
             />
             <CodeWindow
-              title="Persisted status"
+              title="Saved status"
               value={persistedStatus}
-              emptyMessage="No persisted status report yet."
+              emptyMessage="No saved status report yet."
             />
             <CodeWindow
-              title="Current compare.txt"
+              title="Current saved value"
               value={currentSnapshot?.compareText ?? null}
-              emptyMessage="No current baseline compare artifact yet."
+              emptyMessage="No saved value yet."
             />
             <CodeWindow
-              title="Current extraction.json"
+              title="Current extraction details"
               value={currentSnapshot ? prettyJson(currentSnapshot.extractionRecord) : null}
-              emptyMessage="No current extraction record yet."
+              emptyMessage="No extraction record yet."
             />
           </>
         ) : null}
@@ -118,14 +118,14 @@ export function ArtifactsTab({ state }: { state: StateType }) {
           <>
             {state.lastBatch.error ? <p className="error">{state.lastBatch.error}</p> : null}
             <CodeWindow
-              title="Batch report"
+              title="All-watch report"
               value={batchReport}
-              emptyMessage="Run the whole workspace to inspect the batch report."
+              emptyMessage="Check all watches to inspect the combined report."
             />
             <CodeWindow
-              title="Skipped directories"
+              title="Skipped watches"
               value={skippedReport}
-              emptyMessage="No directories were skipped."
+              emptyMessage="No watches were skipped."
             />
           </>
         ) : null}

@@ -1,9 +1,9 @@
 {
   "name": "dataarm",
   "private": true,
-  "description": "Dataarm desktop workbench built with Tauri.",
+  "description": "Desktop app for monitoring exact parts of websites, saving reference versions, and inspecting changes over time.",
   "license": "MIT",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "packageManager": "npm@11.13.0",
   "scripts": {

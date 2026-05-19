@@ -38,19 +38,19 @@ export const TARGET_RUN_OUTCOMES = [
 ] as const satisfies readonly TargetRunOutcome[];
 
 export const TARGET_SOURCE_KIND_LABELS = {
-  http: 'HTTP source',
-  file: 'File source',
+  http: 'Website page',
+  file: 'Local file',
 } as const satisfies Record<TargetSourceKind, string>;
 
 export const TARGET_SELECTION_KIND_LABELS = {
-  css_selector: 'CSS selector',
-  delimiter_pair: 'Delimiter pair',
+  css_selector: 'Section selector',
+  delimiter_pair: 'Text markers',
 } as const satisfies Record<TargetSelectionKind, string>;
 
 export const TARGET_COMPARE_BASIS_LABELS = {
   text: 'Text',
-  inner_html: 'Inner HTML',
-  outer_html: 'Outer HTML',
+  inner_html: 'Section HTML',
+  outer_html: 'Section plus wrapper',
 } as const satisfies Record<TargetCompareBasis, string>;
 
 export const TARGET_STATUS_TONES = {
@@ -70,41 +70,41 @@ export const TARGET_STATUS_TONES = {
 } as const satisfies Record<TargetStatusKind, FeedbackTone>;
 
 export const TARGET_STATUS_LABELS = {
-  ready: 'Ready',
-  pending: 'Needs First Run',
-  changed: 'Change Detected',
-  skipped_disabled: 'Disabled',
-  invalid_config: 'Config Error',
-  unavailable_target: 'Target Missing',
-  invalid_state: 'State Error',
-  incompatible_baseline: 'Baseline Incompatible',
-  integrity_mismatch: 'Baseline Mismatch',
-  directory_invalid: 'Invalid Folder',
-  status_error: 'Status Error',
-  failed_permanent: 'Run Failed',
-  failed_transient: 'Retry Needed',
+  ready: 'Ready to check',
+  pending: 'First check needed',
+  changed: 'Changed',
+  skipped_disabled: 'Paused',
+  invalid_config: 'Needs setup',
+  unavailable_target: 'Page missing',
+  invalid_state: 'Needs repair',
+  incompatible_baseline: 'Saved version needs repair',
+  integrity_mismatch: 'Saved version needs repair',
+  directory_invalid: 'Watch files unavailable',
+  status_error: 'Could not check',
+  failed_permanent: 'Could not check',
+  failed_transient: 'Retry check',
 } as const satisfies Record<TargetStatusKind, string>;
 
 export const TARGET_STATUS_COMPACT_LABELS = {
   ready: 'Ready',
-  pending: 'First run',
+  pending: 'Setup',
   changed: 'Changed',
-  skipped_disabled: 'Disabled',
-  invalid_config: 'Config',
+  skipped_disabled: 'Paused',
+  invalid_config: 'Setup',
   unavailable_target: 'Missing',
-  invalid_state: 'State',
-  incompatible_baseline: 'Baseline',
-  integrity_mismatch: 'Mismatch',
-  directory_invalid: 'Invalid',
-  status_error: 'Status',
+  invalid_state: 'Repair',
+  incompatible_baseline: 'Repair',
+  integrity_mismatch: 'Repair',
+  directory_invalid: 'Folder',
+  status_error: 'Failed',
   failed_permanent: 'Failed',
   failed_transient: 'Retry',
 } as const satisfies Record<TargetStatusKind, string>;
 
 export const TARGET_RUN_OUTCOME_LABELS = {
-  unchanged: 'Unchanged',
+  unchanged: 'No change',
   changed: 'Changed',
-  initialized: 'New baseline',
+  initialized: 'First check',
 } as const satisfies Record<TargetRunOutcome, string>;
 
 export const TARGET_ERROR_STATUS_KINDS = new Set<TargetStatusKind>([

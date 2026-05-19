@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
   deleteTarget: vi.fn(),
   getTargetTemplate: vi.fn(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn(),
   openWorkspacePath: vi.fn(),
   openWorkspace: vi.fn(),

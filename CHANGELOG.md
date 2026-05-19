@@ -5,6 +5,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-19
+
+### Added
+
+- Added per-watch behavior settings for schedules, alert rules, delivery mode, folders, and paused state, plus automatic scheduled checks while Dataarm stays open.
+- Added next-check calculations, paused and alert-focused views, folder grouping, and richer watch search so the main dashboard surfaces what needs attention and what runs next.
+
+### Changed
+
+- Upgraded the embedded runtime line to `ffhn-core v8.1.0` so Dataarm consumes the released upstream HTMLCut execution-stack fixes instead of the retired `8.0.0` line.
+- Expanded the Rust dependency-license policy for the new HTMLCut selector crate that ships inside the `ffhn-core v8.1.0` runtime line.
+- Shifted the first-run desktop surface further toward watch-and-library language, moved library-folder switching and local file creation behind advanced controls, and replaced leftover “baseline” and “artifact” copy with user-facing history and saved-reference wording.
+- Reframed the main workbench around watches, pages, latest values, last checks, next checks, alerts, and history so the primary surfaces read like a website-monitoring product instead of an internal inventory console.
+
+### Fixed
+
+- Corrected version syncing so release-time `sync:app-version` now preserves the repository Prettier contract instead of generating a formatter drift in the frontend version module.
+- Reworked draft watch setup outcomes so unreachable pages and broken selectors now surface repair guidance in the main flow and cannot be saved until a section check succeeds.
+- Fixed the visual section picker so clicking the loaded page preview now chooses the intended section reliably instead of leaving the selector stuck on the default scope.
+
 ## [0.3.0] - 2026-05-19
 
 ### Fixed

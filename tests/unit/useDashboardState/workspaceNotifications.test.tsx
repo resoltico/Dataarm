@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
   deleteTarget: vi.fn(),
   getTargetTemplate: vi.fn(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn(),
   openWorkspacePath: vi.fn(),
   openWorkspace: vi.fn(),
@@ -147,7 +148,7 @@ describe('useDashboardState workspace and notification flows', () => {
       expect(result.current.selectedDirectoryName).toBe('zeta');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Workspace loaded.',
+        message: 'Library loaded.',
       });
     });
 
@@ -201,7 +202,7 @@ describe('useDashboardState workspace and notification flows', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'warning',
-      message: 'Enter a workspace path first.',
+      message: 'Enter a library folder path first.',
     });
 
     act(() => {
@@ -223,7 +224,7 @@ describe('useDashboardState workspace and notification flows', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'success',
-      message: 'Workspace created.',
+      message: 'Library created.',
     });
 
     api.runWorkspace.mockResolvedValueOnce({
@@ -236,9 +237,10 @@ describe('useDashboardState workspace and notification flows', () => {
       await result.current.handleRunWorkspace();
     });
     expect(result.current.actionFeedback).toMatchObject({
-      tone: 'success',
-      message: 'Workspace batch run finished.',
+      tone: 'warning',
+      message: 'Save or reset the draft before checking all watches.',
     });
+    expect(api.runWorkspace).not.toHaveBeenCalled();
 
     api.refreshWorkspace.mockResolvedValueOnce(emptyWorkspace);
     api.runWorkspace.mockRejectedValueOnce(new Error('Empty workspace run exploded'));
@@ -246,8 +248,8 @@ describe('useDashboardState workspace and notification flows', () => {
       await result.current.handleRunWorkspace();
     });
     expect(result.current.actionFeedback).toMatchObject({
-      tone: 'error',
-      message: 'Empty workspace run exploded',
+      tone: 'warning',
+      message: 'Save or reset the draft before checking all watches.',
     });
 
     api.clearNotificationFeed.mockReset();

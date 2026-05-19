@@ -13,8 +13,9 @@ type FixtureBridge = {
 };
 
 type FixturePaths = {
-  demoRoot: string;
+  examplesRoot: string;
   fixtureReleaseNotesPath: string;
+  libraryRoot: string;
 };
 
 type FixtureModule = {
@@ -42,7 +43,7 @@ afterEach(() => {
 });
 
 describe('browser workbench fixture preparation', () => {
-  it('primes the demo template once and clones it for later sessions without rerunning targets', async () => {
+  it('primes hidden example watches once and clones them for later sessions without rerunning targets', async () => {
     const workbenchRoot = tempWorkbenchRoot();
     const calls: BridgeCall[] = [];
     const request = vi.fn((method: string, params?: Record<string, unknown>) => {
@@ -71,9 +72,11 @@ describe('browser workbench fixture preparation', () => {
     const sessionId = '11111111-1111-1111-1111-111111111111';
     const paths = await ensureBrowserWorkbenchFixtures(bridge, sessionId);
 
-    expect(paths.demoRoot).toContain(sessionId);
-    expect(fs.existsSync(path.join(paths.demoRoot, 'status_board', 'target.toml'))).toBe(true);
-    expect(fs.existsSync(path.join(paths.demoRoot, 'release_notes', 'target.toml'))).toBe(true);
+    expect(paths.libraryRoot).toContain(sessionId);
+    expect(paths.examplesRoot).toContain(sessionId);
+    expect(fs.existsSync(path.join(paths.libraryRoot, '.dataarm', 'examples'))).toBe(true);
+    expect(fs.existsSync(path.join(paths.examplesRoot, 'status_board', 'target.toml'))).toBe(true);
+    expect(fs.existsSync(path.join(paths.examplesRoot, 'release_notes', 'target.toml'))).toBe(true);
     expect(calls).toEqual([]);
 
     fs.rmSync(workbenchRoot, { force: true, recursive: true });

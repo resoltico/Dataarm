@@ -30,10 +30,8 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.getByText('New HTTP target')).toBeTruthy();
-    expect(
-      screen.getByText('Previewing the current draft against the canonical FFHN runtime contract.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Add watch')).toBeTruthy();
+    expect(screen.getByText('Checking the page and selected section.')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -47,8 +45,8 @@ describe('DetailPanel changes tab', () => {
         })}
       />,
     );
-    expect(screen.getByText('New file target')).toBeTruthy();
-    expect(screen.getByText('Preview failed')).toBeTruthy();
+    expect(screen.getByText('Add local file watch')).toBeTruthy();
+    expect(screen.getByText('Watch setup check failed')).toBeTruthy();
     expect(screen.getByText('Preview exploded')).toBeTruthy();
 
     rerender(
@@ -64,11 +62,54 @@ describe('DetailPanel changes tab', () => {
         })}
       />,
     );
-    expect(screen.getByText('New target')).toBeTruthy();
-    expect(screen.getByText('Unsaved draft')).toBeTruthy();
+    expect(screen.getByText('Add watch')).toBeTruthy();
+    expect(screen.getByText('Unsaved watch')).toBeTruthy();
     expect(
-      screen.getByText('Preview this draft to validate the target contract before saving it.'),
+      screen.getByText(
+        'Check this draft before saving so Dataarm can confirm the page and section.',
+      ),
     ).toBeTruthy();
+
+    rerender(
+      <DetailPanel
+        state={makeDashboardState({
+          isDraftContext: true,
+          selectedDirectoryName: null,
+          selectedTarget: null,
+          editorMode: 'http',
+          detailTab: 'changes',
+          preview: {
+            loading: false,
+            error: null,
+            data: {
+              targetId: 'release_digest',
+              displayName: 'Release digest',
+              canonicalToml: 'target_id = "release_digest"\n',
+              draftSession: {
+                ...guidedSession(),
+                draft: {
+                  ...guidedSession().draft,
+                  sourceLocator: '',
+                },
+              },
+              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
+              dryRunReport: {
+                schema_name: 'ffhn.run_report',
+                extraction: { candidate_count: 1 },
+                result: { kind: 'initialized' },
+              },
+              previewSnapshot: makeSnapshotArtifact(),
+              previewArtifactIssues: [],
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Section ready')).toBeTruthy();
+    expect(screen.getByText('Release digest')).toBeTruthy();
+    expect(screen.getAllByText('Matched 1 section.').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Save watch' })).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -87,8 +128,16 @@ describe('DetailPanel changes tab', () => {
               canonicalToml: 'target_id = "release_digest"\n',
               draftSession: guidedSession(),
               statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
-              dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'initialized' } },
-              previewSnapshot: makeSnapshotArtifact(),
+              dryRunReport: {
+                schema_name: 'ffhn.run_report',
+                fetch: { final_url: 'http://127.0.0.1:9999/', http_status: null },
+                result: {
+                  kind: 'failed_transient',
+                  cause: 'fetch_network_error',
+                  error_detail: { message: 'io: Connection refused' },
+                },
+              },
+              previewSnapshot: null,
               previewArtifactIssues: [],
             },
           },
@@ -96,12 +145,49 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.getByText('Preview ready')).toBeTruthy();
-    expect(screen.getByText('Release digest')).toBeTruthy();
-    expect(screen.getByText('Preview status report')).toBeTruthy();
+    expect(screen.getByText('Could not reach the page')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Fix watch setup' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save watch' })).toBeNull();
+
+    rerender(
+      <DetailPanel
+        state={makeDashboardState({
+          isDraftContext: true,
+          selectedDirectoryName: null,
+          selectedTarget: null,
+          editorMode: 'http',
+          detailTab: 'changes',
+          preview: {
+            loading: false,
+            error: null,
+            data: {
+              targetId: 'release_digest',
+              displayName: 'Release digest',
+              canonicalToml: 'target_id = "release_digest"\n',
+              draftSession: guidedSession(),
+              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
+              dryRunReport: {
+                schema_name: 'ffhn.run_report',
+                fetch: { final_url: 'https://example.com/missing', http_status: 500 },
+                result: {
+                  kind: 'failed_permanent',
+                  cause: 'fetch_http_error',
+                  error_detail: { message: 'HTTP 500' },
+                },
+              },
+              previewSnapshot: null,
+              previewArtifactIssues: [],
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText('HTTP status')).toBeTruthy();
+    expect(screen.getByText('500')).toBeTruthy();
   });
 
-  it('renders saved-target change states and baseline history', () => {
+  it('renders saved-target change states and reference history', () => {
     const handleRunSelectedTarget = vi.fn();
     const { rerender } = render(
       <DetailPanel
@@ -114,7 +200,7 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.getByText('Select a target to view its change status.')).toBeTruthy();
+    expect(screen.getByText('Select a watch to view its latest checks and changes.')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -131,8 +217,8 @@ describe('DetailPanel changes tab', () => {
         })}
       />,
     );
-    expect(screen.getByText('Never Run')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Run target' }));
+    expect(screen.getByText('First check needed')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Check watch' }));
     expect(handleRunSelectedTarget).toHaveBeenCalledTimes(1);
 
     rerender(
@@ -175,7 +261,7 @@ describe('DetailPanel changes tab', () => {
     );
     expect(screen.getByText('Content Changed')).toBeTruthy();
     expect(screen.getByText('Missing compare snapshot digest')).toBeTruthy();
-    expect(screen.getByText('Baseline timeline')).toBeTruthy();
+    expect(screen.getByText('History timeline')).toBeTruthy();
     const historyButtons = screen.getAllByRole('button', { name: /2026/u });
     expect(historyButtons).toHaveLength(2);
     expect(historyButtons[0]?.className).toContain('history-pill-active');
@@ -186,7 +272,7 @@ describe('DetailPanel changes tab', () => {
     }
     fireEvent.click(secondHistoryButton);
     expect(screen.getByText('Comparing against')).toBeTruthy();
-    expect(screen.getByText('Current compare.txt')).toBeTruthy();
+    expect(screen.getByText('Current saved text')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -212,7 +298,7 @@ describe('DetailPanel changes tab', () => {
         })}
       />,
     );
-    expect(screen.getByText('Baseline Recorded')).toBeTruthy();
+    expect(screen.getByText('First Check Saved')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -237,7 +323,7 @@ describe('DetailPanel changes tab', () => {
     expect(screen.getByText('No Changes Detected')).toBeTruthy();
     expect(
       screen.getByText(
-        'No baseline snapshots exist yet. Run this target to create the first compare artifact.',
+        'Dataarm has not saved a reference version yet. Check this watch once to start its history.',
       ),
     ).toBeTruthy();
   });
@@ -284,8 +370,8 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review config' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save watch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review settings' }));
     expect(handleSave).toHaveBeenCalledTimes(1);
     expect(setDetailTab).toHaveBeenCalledWith('config');
     expect(screen.getByText('Preview artifact drift')).toBeTruthy();
@@ -295,7 +381,7 @@ describe('DetailPanel changes tab', () => {
       throw new Error('Expected a preview compare button.');
     }
     fireEvent.click(previewCompareButton);
-    expect(screen.getByText('Current compare.txt')).toBeTruthy();
+    expect(screen.getByText('Current saved text')).toBeTruthy();
 
     const previewExtractionButton = screen.getAllByRole('button', { name: 'Extraction' })[0];
     if (!previewExtractionButton) {
@@ -322,7 +408,7 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Running target…' }).getAttribute('title')).toBe(
+    expect(screen.getByRole('button', { name: 'Checking watch…' }).getAttribute('title')).toBe(
       'Save or reset the draft first.',
     );
 
@@ -340,7 +426,7 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Run target' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Check watch' })).toBeNull();
   });
 
   it('renders saving, running, and null-metadata fallback states honestly', () => {
@@ -393,11 +479,11 @@ describe('DetailPanel changes tab', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Running target…' })).toBeTruthy();
-    expect(screen.getByText('Source')).toBeTruthy();
-    expect(screen.getByText('Selector')).toBeTruthy();
-    expect(screen.getByText('Compare basis')).toBeTruthy();
-    expect(screen.getByText('Target ID')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Checking watch…' })).toBeTruthy();
+    expect(screen.getByText('Page')).toBeTruthy();
+    expect(screen.getByText('Section')).toBeTruthy();
+    expect(screen.getByText('Compare using')).toBeTruthy();
+    expect(screen.getByText('Alerts')).toBeTruthy();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 
@@ -474,7 +560,7 @@ describe('DetailPanel changes tab', () => {
       throw new Error('Expected a history extraction button.');
     }
     fireEvent.click(historyExtractionButton);
-    expect(screen.getByText('Current extraction.json')).toBeTruthy();
+    expect(screen.getByText('Current extraction details')).toBeTruthy();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });

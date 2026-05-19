@@ -1,9 +1,11 @@
+import { useState } from 'react';
+
 import { NotificationCenter } from './NotificationCenter';
 import type { useDashboardState } from '../../hooks/useDashboardState';
 
-export type FilterView = 'all' | 'changed' | 'never_run' | 'http' | 'file' | 'attention';
+export type FilterView = 'all' | 'changed' | 'alerts' | 'failed' | 'paused' | 'needs_setup';
 
-export type TargetGroupBy = 'none' | 'status' | 'source_kind';
+export type TargetGroupBy = 'none' | 'status' | 'folder';
 
 type StateType = ReturnType<typeof useDashboardState>;
 
@@ -16,6 +18,7 @@ export function NavSidebar({
   filterView: FilterView;
   setFilterView: (v: FilterView) => void;
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const workspaceTransitioning = state.workspace.loading || state.openingWorkspace;
   const ws = state.workspaceSummary;
   const currentPath = ws?.workspacePath.trim() ?? '';
@@ -24,25 +27,26 @@ export function NavSidebar({
   const canCreate = inputPath.length > 0 && !state.openingWorkspace;
 
   const views: Array<{ id: FilterView; label: string; count: number; alert?: boolean }> = [
-    { id: 'all', label: 'All targets', count: state.stats.total },
+    { id: 'all', label: 'All watches', count: state.stats.total },
     { id: 'changed', label: 'Changed', count: state.stats.changed, alert: state.stats.changed > 0 },
-    { id: 'never_run', label: 'Needs baseline', count: state.stats.firstRun },
     {
-      id: 'http',
-      label: 'HTTP sources',
-      count: state.targets.filter((target) => target.sourceKind === 'http').length,
+      id: 'alerts',
+      label: 'Alerts',
+      count: state.stats.changed + state.stats.attention,
+      alert: state.stats.changed + state.stats.attention > 0,
     },
     {
-      id: 'file',
-      label: 'File sources',
-      count: state.targets.filter((target) => target.sourceKind === 'file').length,
-    },
-    {
-      id: 'attention',
-      label: 'Needs attention',
+      id: 'failed',
+      label: 'Failed',
       count: state.stats.attention,
       alert: state.stats.attention > 0,
     },
+    {
+      id: 'paused',
+      label: 'Paused',
+      count: state.targets.filter((target) => target.watchProfile.paused).length,
+    },
+    { id: 'needs_setup', label: 'Needs setup', count: state.stats.firstRun },
   ];
 
   const recentWorkspaces = state.recentWorkspaces
@@ -51,30 +55,30 @@ export function NavSidebar({
 
   return (
     <nav className="nav-sidebar" aria-label="Navigation">
-      {/* Filter views */}
       <div className="nav-section">
         <p className="nav-label">VIEWS</p>
         <ul className="nav-list">
-          {views.map((v) => (
-            <li key={v.id}>
+          {views.map((view) => (
+            <li key={view.id}>
               <button
                 className={[
                   'nav-item',
-                  filterView === v.id ? 'nav-item-active' : '',
-                  v.alert ? 'nav-item-alert' : '',
+                  filterView === view.id ? 'nav-item-active' : '',
+                  view.alert ? 'nav-item-alert' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
                 onClick={() => {
-                  setFilterView(v.id);
+                  setFilterView(view.id);
                 }}
+                type="button"
               >
-                <span className="nav-item-label">{v.label}</span>
+                <span className="nav-item-label">{view.label}</span>
                 <span
-                  className={`nav-item-count ${v.alert ? 'nav-item-count-alert' : ''}`}
+                  className={`nav-item-count ${view.alert ? 'nav-item-count-alert' : ''}`}
                   aria-hidden="true"
                 >
-                  {v.count}
+                  {view.count}
                 </span>
               </button>
             </li>
@@ -82,9 +86,8 @@ export function NavSidebar({
         </ul>
       </div>
 
-      {/* New target */}
       <div className="nav-section">
-        <p className="nav-label">NEW TARGET</p>
+        <p className="nav-label">ADD WATCH</p>
         <div className="nav-new-buttons">
           <button
             className="nav-new-btn"
@@ -92,8 +95,9 @@ export function NavSidebar({
               void state.handleStartNewTarget('http');
             }}
             disabled={workspaceTransitioning}
+            type="button"
           >
-            New HTTP
+            Add watch
           </button>
           <button
             className="nav-new-btn"
@@ -101,74 +105,88 @@ export function NavSidebar({
               void state.handleStartNewTarget('file');
             }}
             disabled={workspaceTransitioning}
+            type="button"
           >
-            New file
+            Advanced: local file
           </button>
         </div>
       </div>
 
-      {/* Workspace switcher */}
-      <section className="nav-section" aria-label="Workspace controls">
-        <p className="nav-label">WORKSPACE</p>
-        <label className="nav-field-label" htmlFor="watch-root-path">
-          Switch watch root
-        </label>
-        <input
-          id="watch-root-path"
-          aria-label="Switch watch root"
-          className="nav-path-input"
-          value={state.workspaceInput}
-          onChange={(e) => {
-            state.setWorkspaceInput(e.target.value);
+      <section className="nav-section" aria-label="Library controls">
+        <p className="nav-label">SETTINGS</p>
+        <button
+          className="nav-new-btn button-secondary-accent"
+          onClick={() => {
+            setAdvancedOpen((value) => !value);
           }}
-          placeholder="/path/to/watch-root"
-        />
-        <div className="nav-new-buttons" style={{ marginTop: '0.32rem' }}>
-          <button
-            className="nav-new-btn"
-            onClick={() => {
-              void state.handleOpenWorkspaceFromInput();
-            }}
-            disabled={!canSwitch}
-          >
-            {state.openingWorkspace ? 'Opening watch root…' : 'Open watch root'}
-          </button>
-          <button
-            className="nav-new-btn button-secondary-accent"
-            onClick={() => {
-              void state.handleCreateWorkspaceFromInput();
-            }}
-            disabled={!canCreate}
-          >
-            Create watch root
-          </button>
-        </div>
+          type="button"
+        >
+          {advancedOpen ? 'Hide advanced library tools' : 'Show advanced library tools'}
+        </button>
+        {advancedOpen ? (
+          <>
+            <label className="nav-field-label" htmlFor="watch-root-path">
+              Change library folder
+            </label>
+            <input
+              id="watch-root-path"
+              aria-label="Change library folder"
+              className="nav-path-input"
+              value={state.workspaceInput}
+              onChange={(event) => {
+                state.setWorkspaceInput(event.target.value);
+              }}
+              placeholder="/path/to/watch-library"
+            />
+            <div className="nav-new-buttons" style={{ marginTop: '0.32rem' }}>
+              <button
+                className="nav-new-btn"
+                onClick={() => {
+                  void state.handleOpenWorkspaceFromInput();
+                }}
+                disabled={!canSwitch}
+                type="button"
+              >
+                {state.openingWorkspace ? 'Opening library…' : 'Open library'}
+              </button>
+              <button
+                className="nav-new-btn button-secondary-accent"
+                onClick={() => {
+                  void state.handleCreateWorkspaceFromInput();
+                }}
+                disabled={!canCreate}
+                type="button"
+              >
+                Create library
+              </button>
+            </div>
+          </>
+        ) : null}
       </section>
 
-      {/* Recent workspaces */}
-      {recentWorkspaces.length > 0 && (
+      {recentWorkspaces.length > 0 && advancedOpen ? (
         <div className="nav-section">
-          <p className="nav-label">RECENT</p>
+          <p className="nav-label">RECENT LIBRARIES</p>
           <ul className="nav-list">
-            {recentWorkspaces.map((r) => (
-              <li key={r.workspacePath}>
+            {recentWorkspaces.map((workspace) => (
+              <li key={workspace.workspacePath}>
                 <button
                   className="nav-item nav-item-recent"
                   disabled={workspaceTransitioning}
                   onClick={() => {
-                    void state.handleOpenRecentWorkspace(r.workspacePath);
+                    void state.handleOpenRecentWorkspace(workspace.workspacePath);
                   }}
-                  title={r.workspacePath}
+                  title={workspace.workspacePath}
+                  type="button"
                 >
-                  <span className="nav-item-label">{r.workspaceName}</span>
+                  <span className="nav-item-label">{workspace.workspaceName}</span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
 
-      {/* Notification center at bottom */}
       <div className="nav-section nav-section-notifs">
         <NotificationCenter state={state} />
       </div>

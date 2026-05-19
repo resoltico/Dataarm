@@ -38,6 +38,7 @@ fn persist_target_document_creates_target_file() {
             &workspace.path().join("source.html"),
             ".release",
         )),
+        watch_profile: None,
     };
 
     let directory_name =
@@ -59,6 +60,7 @@ fn persist_target_document_renames_target_directory() {
             &workspace.path().join("old.html"),
             ".old",
         )),
+        watch_profile: None,
     };
     persist_target_document(workspace.path(), &old_request).expect("persist old target");
 
@@ -71,6 +73,7 @@ fn persist_target_document_renames_target_directory() {
             &workspace.path().join("new.html"),
             ".new",
         )),
+        watch_profile: None,
     };
 
     let directory_name =
@@ -95,6 +98,7 @@ fn persist_target_document_rejects_duplicate_destination_on_rename() {
                 &workspace.path().join("old.html"),
                 ".old",
             )),
+            watch_profile: None,
         },
     )
     .expect("persist old target");
@@ -109,6 +113,7 @@ fn persist_target_document_rejects_duplicate_destination_on_rename() {
                 &workspace.path().join("taken.html"),
                 ".taken",
             )),
+            watch_profile: None,
         },
     )
     .expect("persist taken target");
@@ -124,6 +129,7 @@ fn persist_target_document_rejects_duplicate_destination_on_rename() {
                 &workspace.path().join("taken.html"),
                 ".taken",
             )),
+            watch_profile: None,
         },
     )
     .expect_err("rename should fail");
@@ -266,6 +272,7 @@ fn execute_target_run_persists_runtime_artifacts_for_file_targets() {
                 &source,
                 ".release",
             )),
+            watch_profile: None,
         },
     )
     .expect("persist target");
@@ -326,6 +333,7 @@ fn execute_target_run_persists_runtime_artifacts_for_delimited_file_targets() {
                 "BEGIN PAYLOAD",
                 "END PAYLOAD",
             )),
+            watch_profile: None,
         },
     )
     .expect("persist target");
@@ -381,6 +389,7 @@ fn persist_and_read_target_round_trip_preserves_guided_seed_for_delimited_target
             previous_directory_name: None,
             draft_session: None,
             raw_toml: Some(raw_toml.clone()),
+            watch_profile: None,
         },
     )
     .expect("persist target");
@@ -435,6 +444,7 @@ fn execute_workspace_run_processes_every_runnable_target() {
                     &source,
                     selector,
                 )),
+                watch_profile: None,
             },
         )
         .expect("persist target");
@@ -482,6 +492,7 @@ fn execute_workspace_run_skips_invalid_directory_ids_and_keeps_valid_targets() {
                 &source,
                 ".release",
             )),
+            watch_profile: None,
         },
     )
     .expect("persist target");
@@ -550,6 +561,7 @@ fn execute_workspace_run_processes_a_live_http_target_corpus() {
                     &format!("{base_url}{path}"),
                     selector,
                 )),
+                watch_profile: None,
             },
         )
         .expect("persist http target");

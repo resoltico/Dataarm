@@ -20,8 +20,8 @@ describe('DetailPanel shell', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Config' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Artifacts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
 
     expect(setDetailTab).toHaveBeenNthCalledWith(1, 'config');
     expect(setDetailTab).toHaveBeenNthCalledWith(2, 'artifacts');
@@ -36,7 +36,7 @@ describe('DetailPanel shell', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Preview target' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Save target' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check section' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save watch' })).toBeTruthy();
   });
 });

@@ -9,6 +9,7 @@ const { invoke, browserWorkbenchClient } = vi.hoisted(() => ({
     createWorkspaceWorkbench: vi.fn(),
     readTargetWorkbench: vi.fn(),
     getTargetTemplateWorkbench: vi.fn(),
+    inspectSourceWorkbench: vi.fn(),
     previewTargetWorkbench: vi.fn(),
     saveTargetWorkbench: vi.fn(),
     updateNotificationSettingsWorkbench: vi.fn(),
@@ -85,6 +86,7 @@ describe('desktop api bridge', () => {
     browserWorkbenchClient.createWorkspaceWorkbench.mockResolvedValue('create-workspace');
     browserWorkbenchClient.readTargetWorkbench.mockResolvedValue('read-target');
     browserWorkbenchClient.getTargetTemplateWorkbench.mockResolvedValue(targetTemplate);
+    browserWorkbenchClient.inspectSourceWorkbench.mockResolvedValue('inspect-source');
     browserWorkbenchClient.previewTargetWorkbench.mockResolvedValue('preview-target');
     browserWorkbenchClient.saveTargetWorkbench.mockResolvedValue('save-target');
     browserWorkbenchClient.updateNotificationSettingsWorkbench.mockResolvedValue(
@@ -103,6 +105,17 @@ describe('desktop api bridge', () => {
     await expect(api.createWorkspace('/tmp/new')).resolves.toBe('create-workspace');
     await expect(api.readTarget('demo')).resolves.toBe('read-target');
     await expect(api.getTargetTemplate('http')).resolves.toBe(targetTemplate);
+    await expect(
+      api.inspectSource({
+        kind: 'http',
+        sourceLocator: 'https://example.com',
+        fetchMethod: 'GET',
+        fetchTimeoutMs: 15000,
+        fetchUserAgent: 'dataarm/template',
+        fetchFollowRedirects: true,
+        fetchAccept: 'text/html',
+      }),
+    ).resolves.toBe('inspect-source');
     await expect(api.previewTarget({ rawToml: 'raw' })).resolves.toBe('preview-target');
     await expect(api.saveTarget({ rawToml: 'raw' })).resolves.toBe('save-target');
     await expect(
@@ -118,6 +131,15 @@ describe('desktop api bridge', () => {
     expect(browserWorkbenchClient.openWorkspaceWorkbench).toHaveBeenCalledWith('/tmp/demo');
     expect(browserWorkbenchClient.createWorkspaceWorkbench).toHaveBeenCalledWith('/tmp/new');
     expect(browserWorkbenchClient.getTargetTemplateWorkbench).toHaveBeenCalledWith('http');
+    expect(browserWorkbenchClient.inspectSourceWorkbench).toHaveBeenCalledWith({
+      kind: 'http',
+      sourceLocator: 'https://example.com',
+      fetchMethod: 'GET',
+      fetchTimeoutMs: 15000,
+      fetchUserAgent: 'dataarm/template',
+      fetchFollowRedirects: true,
+      fetchAccept: 'text/html',
+    });
     expect(browserWorkbenchClient.previewTargetWorkbench).toHaveBeenCalledWith({ rawToml: 'raw' });
     expect(browserWorkbenchClient.saveTargetWorkbench).toHaveBeenCalledWith({ rawToml: 'raw' });
     expect(browserWorkbenchClient.updateNotificationSettingsWorkbench).toHaveBeenCalledWith({
@@ -141,6 +163,15 @@ describe('desktop api bridge', () => {
     await api.createWorkspace('/tmp/new');
     await api.readTarget('demo');
     await api.getTargetTemplate('file');
+    await api.inspectSource({
+      kind: 'file',
+      sourceLocator: '/tmp/demo.html',
+      fetchMethod: null,
+      fetchTimeoutMs: null,
+      fetchUserAgent: null,
+      fetchFollowRedirects: null,
+      fetchAccept: null,
+    });
     await api.previewTarget({ rawToml: 'raw' });
     await api.saveTarget({ previousDirectoryName: 'old', rawToml: 'raw' });
     await api.updateNotificationSettings({ notifyWhen: 'errors_only', delivery: 'system' });
@@ -157,19 +188,30 @@ describe('desktop api bridge', () => {
     expect(invoke).toHaveBeenNthCalledWith(4, 'create_workspace', { workspacePath: '/tmp/new' });
     expect(invoke).toHaveBeenNthCalledWith(5, 'read_target', { directoryName: 'demo' });
     expect(invoke).toHaveBeenNthCalledWith(6, 'get_target_template', { kind: 'file' });
-    expect(invoke).toHaveBeenNthCalledWith(7, 'preview_target', { request: { rawToml: 'raw' } });
-    expect(invoke).toHaveBeenNthCalledWith(8, 'save_target', {
+    expect(invoke).toHaveBeenNthCalledWith(7, 'inspect_source', {
+      request: {
+        kind: 'file',
+        sourceLocator: '/tmp/demo.html',
+        fetchMethod: null,
+        fetchTimeoutMs: null,
+        fetchUserAgent: null,
+        fetchFollowRedirects: null,
+        fetchAccept: null,
+      },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(8, 'preview_target', { request: { rawToml: 'raw' } });
+    expect(invoke).toHaveBeenNthCalledWith(9, 'save_target', {
       request: { previousDirectoryName: 'old', rawToml: 'raw' },
     });
-    expect(invoke).toHaveBeenNthCalledWith(9, 'update_notification_settings', {
+    expect(invoke).toHaveBeenNthCalledWith(10, 'update_notification_settings', {
       settings: { notifyWhen: 'errors_only', delivery: 'system' },
     });
-    expect(invoke).toHaveBeenNthCalledWith(10, 'clear_notification_feed');
-    expect(invoke).toHaveBeenNthCalledWith(11, 'delete_target', { directoryName: 'demo' });
-    expect(invoke).toHaveBeenNthCalledWith(12, 'run_target', { directoryName: 'demo' });
-    expect(invoke).toHaveBeenNthCalledWith(13, 'run_workspace', { maxConcurrency: 8 });
-    expect(invoke).toHaveBeenNthCalledWith(14, 'open_workspace_path');
-    expect(invoke).toHaveBeenNthCalledWith(15, 'open_target_path', { directoryName: 'demo' });
+    expect(invoke).toHaveBeenNthCalledWith(11, 'clear_notification_feed');
+    expect(invoke).toHaveBeenNthCalledWith(12, 'delete_target', { directoryName: 'demo' });
+    expect(invoke).toHaveBeenNthCalledWith(13, 'run_target', { directoryName: 'demo' });
+    expect(invoke).toHaveBeenNthCalledWith(14, 'run_workspace', { maxConcurrency: 8 });
+    expect(invoke).toHaveBeenNthCalledWith(15, 'open_workspace_path');
+    expect(invoke).toHaveBeenNthCalledWith(16, 'open_target_path', { directoryName: 'demo' });
   });
 
   it('treats non-browser runtimes as tauri hosts instead of using the browser workbench backend', async () => {

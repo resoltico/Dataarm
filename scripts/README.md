@@ -1,6 +1,6 @@
 # Scripts
 
-All scripts in this directory are invoked through `package.json`. Use `npm run <command>` as the entry point.
+All scripts in this directory are invoked through `package.json`. Use `npm run <command>` as the entry point when your shell is already running under the pinned `mise` toolchain. In a plain host shell, prefix commands with `mise exec --`.
 
 ## Catalogue
 
