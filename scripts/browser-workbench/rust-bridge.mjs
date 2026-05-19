@@ -1,22 +1,45 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import readline from 'node:readline';
 import path from 'node:path';
 
-import { repoRoot } from '../lib/artifact-roots.mjs';
+import { cargoTargetRoot, repoRoot } from '../lib/artifact-roots.mjs';
 
-function bridgeCommand() {
-  return [
+function bridgeBinaryPath() {
+  return path.join(
+    cargoTargetRoot(),
+    'debug',
+    'examples',
+    process.platform === 'win32' ? 'browser_workbench_bridge.exe' : 'browser_workbench_bridge',
+  );
+}
+
+export function ensureRustWorkbenchBridgeBuilt() {
+  const result = spawnSync(
     'cargo',
     [
-      'run',
+      'build',
       '--quiet',
       '--manifest-path',
       path.join(repoRoot, 'src-tauri', 'Cargo.toml'),
       '--example',
       'browser_workbench_bridge',
-      '--',
     ],
-  ];
+    {
+      cwd: repoRoot,
+      env: process.env,
+      stdio: 'inherit',
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if ((result.status ?? 1) !== 0) {
+    throw new Error(
+      `Browser workbench bridge build failed with exit code ${String(result.status ?? 1)}.`,
+    );
+  }
 }
 
 export function createRustWorkbenchBridge() {
@@ -56,8 +79,9 @@ export function createRustWorkbenchBridge() {
       return;
     }
 
-    const [command, args] = bridgeCommand();
-    child = spawn(command, args, {
+    ensureRustWorkbenchBridgeBuilt();
+
+    child = spawn(bridgeBinaryPath(), [], {
       cwd: repoRoot,
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'],

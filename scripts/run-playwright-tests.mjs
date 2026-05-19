@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ensureManagedRootById } from './lib/hygiene.mjs';
+import { ensureRustWorkbenchBridgeBuilt } from './browser-workbench/rust-bridge.mjs';
 
 const require = createRequire(import.meta.url);
 const cliPath = require.resolve('@playwright/test/cli');
@@ -20,6 +21,7 @@ if (env.FORCE_COLOR) {
 ensureManagedRootById('managed-playwright-report');
 ensureManagedRootById('managed-playwright-test-results');
 ensureManagedRootById('managed-playwright-coverage');
+ensureRustWorkbenchBridgeBuilt();
 env.DATAARM_COVERAGE = '1';
 env.VITE_COVERAGE = 'true';
 env.VITE_DATAARM_BROWSER_BACKEND = 'browser_workbench';
