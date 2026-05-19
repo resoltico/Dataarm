@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Corrected the desktop Miri contract so the pinned seam test proves Dataarm-owned target persistence round-tripping instead of reporting a narrower read-only path.
 - Removed cached Prettier checking from the release-grade Node gate so local verification and GitHub Actions prove the same formatting contract.
 - Stopped background workspace hydrations from clearing the watch-root input field, so a late refresh can no longer erase a path while the operator is preparing a new workspace.
+- Pre-primed the browser workbench demo workspace once per server boot and switched fresh sessions to cloned fixture state, so release CI no longer times out while rebuilding the same demo artifacts for each browser session.
 
 ### Changed
 

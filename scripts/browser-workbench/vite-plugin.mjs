@@ -8,7 +8,7 @@ import {
   BROWSER_WORKBENCH_SESSION_COOKIE,
   BROWSER_WORKBENCH_SESSION_HEADER,
 } from './constants.mjs';
-import { ensureBrowserWorkbenchFixtures } from './fixtures.mjs';
+import { ensureBrowserWorkbenchFixtures, prepareBrowserWorkbenchTemplate } from './fixtures.mjs';
 import { recordTargetRunNotification, recordWorkspaceRunNotification } from './notifications.mjs';
 import { createRustWorkbenchBridge } from './rust-bridge.mjs';
 
@@ -51,6 +51,23 @@ function parseCookies(header) {
         return [segment.slice(0, separator), decodeURIComponent(segment.slice(separator + 1))];
       }),
   );
+}
+
+function acceptsHtml(req) {
+  return typeof req.headers.accept === 'string' && req.headers.accept.includes('text/html');
+}
+
+function resolveSessionIdFromRequest(payloadSessionId, headerSessionId, cookies) {
+  if (typeof payloadSessionId === 'string' && payloadSessionId.trim().length > 0) {
+    return payloadSessionId;
+  }
+  if (Array.isArray(headerSessionId) && headerSessionId.length > 0) {
+    return headerSessionId[0];
+  }
+  if (typeof headerSessionId === 'string' && headerSessionId.trim().length > 0) {
+    return headerSessionId;
+  }
+  return cookies.get(BROWSER_WORKBENCH_SESSION_COOKIE);
 }
 
 function workspaceSourceForPath(session, workspacePath) {
@@ -132,8 +149,16 @@ export function dataarmBrowserWorkbenchPlugin() {
 
   const bridge = createRustWorkbenchBridge();
   const sessions = new Map();
+  let templateReadyPromise = null;
+
+  function ensureTemplateReady() {
+    templateReadyPromise ??= prepareBrowserWorkbenchTemplate(bridge);
+    return templateReadyPromise;
+  }
 
   async function ensureSession(sessionId) {
+    await ensureTemplateReady();
+
     const existing = sessions.get(sessionId);
     if (existing) {
       if (existing.initialized) {
@@ -286,7 +311,46 @@ export function dataarmBrowserWorkbenchPlugin() {
 
   return {
     name: 'dataarm-browser-workbench',
-    configureServer(server) {
+    async configureServer(server) {
+      await ensureTemplateReady();
+
+      server.middlewares.use(async (req, res, next) => {
+        if (
+          req.method !== 'GET' ||
+          req.url == null ||
+          req.url.startsWith(BROWSER_WORKBENCH_RPC_PATH)
+        ) {
+          next();
+          return;
+        }
+        if (!acceptsHtml(req)) {
+          next();
+          return;
+        }
+
+        try {
+          const cookies = parseCookies(req.headers.cookie);
+          let sessionId = resolveSessionIdFromRequest(
+            null,
+            req.headers[BROWSER_WORKBENCH_SESSION_HEADER],
+            cookies,
+          );
+          if (!sessionId) {
+            sessionId = randomUUID();
+            res.setHeader(
+              'Set-Cookie',
+              `${BROWSER_WORKBENCH_SESSION_COOKIE}=${encodeURIComponent(
+                sessionId,
+              )}; Path=/; SameSite=Lax; HttpOnly`,
+            );
+          }
+          await ensureSession(sessionId);
+          next();
+        } catch (error) {
+          next(error);
+        }
+      });
+
       server.middlewares.use(BROWSER_WORKBENCH_RPC_PATH, async (req, res, next) => {
         if (req.method !== 'POST') {
           next();
@@ -296,15 +360,8 @@ export function dataarmBrowserWorkbenchPlugin() {
         try {
           const payload = await readJson(req);
           const cookies = parseCookies(req.headers.cookie);
-          const headerSessionId = req.headers[BROWSER_WORKBENCH_SESSION_HEADER];
-          let sessionId =
-            typeof payload.sessionId === 'string' && payload.sessionId.trim().length > 0
-              ? payload.sessionId
-              : Array.isArray(headerSessionId)
-                ? headerSessionId[0]
-                : typeof headerSessionId === 'string'
-                  ? headerSessionId
-                  : cookies.get(BROWSER_WORKBENCH_SESSION_COOKIE);
+          const sessionHeader = req.headers[BROWSER_WORKBENCH_SESSION_HEADER];
+          let sessionId = resolveSessionIdFromRequest(payload.sessionId, sessionHeader, cookies);
           if (!sessionId) {
             sessionId = randomUUID();
             res.setHeader(
