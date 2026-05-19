@@ -1,4 +1,6 @@
 import './coverage';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 async function waitForDetailTitle(page: Page, heading: string) {
@@ -36,8 +38,36 @@ async function fillGuidedDraft(
 }
 
 async function openArtifactSubTab(page: Page, label: 'Preview' | 'Last run' | 'State' | 'Batch') {
-  await page.getByRole('button', { name: 'Artifacts' }).click();
-  await page.getByRole('button', { name: label }).click();
+  const artifactsTab = page.getByRole('button', { name: 'Artifacts', exact: true });
+  await artifactsTab.click();
+  await expect(artifactsTab).toHaveClass(/detail-tab-btn-active/u);
+
+  const subTab = page
+    .locator('.artifact-sub-tabs')
+    .getByRole('button', { name: label, exact: true });
+  await expect(subTab).toBeVisible();
+  await subTab.click();
+  await expect(subTab).toHaveClass(/artifact-sub-tab-active/u);
+}
+
+async function writeFileFixture(filePath: string, body: string) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, body, 'utf8');
+}
+
+function releaseNotesHtml(title: string, summary: string) {
+  return `<!doctype html>
+<html>
+  <body>
+    <main>
+      <article class="release">
+        <h1>${title}</h1>
+        <p>${summary}</p>
+      </article>
+    </main>
+  </body>
+</html>
+`;
 }
 
 test.describe('Dataarm Dashboard', () => {
@@ -63,7 +93,7 @@ test.describe('Dataarm Dashboard', () => {
     await waitForLoadedEditor(page, 'New HTTP target');
 
     await expect(page.getByLabel('Target ID')).toHaveValue('website_watch');
-    await expect(page.getByLabel('Source URL')).toHaveValue('https://example.com');
+    await expect(page.getByLabel('Source URL')).toHaveValue('https://example.com/');
 
     await page.getByRole('button', { name: 'Preview target' }).click();
 
@@ -74,7 +104,7 @@ test.describe('Dataarm Dashboard', () => {
     await expect(page.getByText('ffhn.run_report')).toBeVisible();
   });
 
-  test('surfaces malformed draft errors in the preview workbench without leaking mock internals', async ({
+  test('surfaces malformed draft errors in the preview workbench without leaking browser-workbench internals', async ({
     page,
   }) => {
     await page.goto('/');
@@ -87,8 +117,10 @@ test.describe('Dataarm Dashboard', () => {
 
     await expect(page.locator('.detail-tab-btn-active')).toHaveText('Preview');
     await expect(page.getByText('Preview failed', { exact: true })).toBeVisible();
-    await expect(page.locator('.detail-panel')).toContainText('target_id is required.');
-    await expect(page.getByText(/mock desktop runtime/i)).toHaveCount(0);
+    await expect(page.locator('.detail-panel')).toContainText(
+      'contract error: target_id must not be empty',
+    );
+    await expect(page.getByText(/browser workbench runtime/i)).toHaveCount(0);
   });
 
   test('enters a truthful draft context for new http targets', async ({ page }) => {
@@ -131,13 +163,13 @@ test.describe('Dataarm Dashboard', () => {
     await waitForDetailTitle(page, 'New HTTP target');
   });
 
-  test('runs the whole workspace against the browser mock backend', async ({ page }) => {
+  test('runs the whole workspace against the browser workbench backend', async ({ page }) => {
     await page.goto('/');
 
     await page.getByRole('button', { name: 'Run workspace' }).click();
     await openArtifactSubTab(page, 'Batch');
 
-    await expect(page.locator('.top-feedback')).toHaveText('Workspace run found 2 new baselines.');
+    await expect(page.locator('.top-feedback')).toHaveText('Workspace run found 1 changed target.');
     await expect(page.getByText('ffhn.batch_run_report')).toBeVisible();
     await expect(page.locator('td.col-when', { hasText: 'Not recorded' })).toHaveCount(0);
   });
@@ -148,8 +180,9 @@ test.describe('Dataarm Dashboard', () => {
     await page.goto('/');
 
     await page.getByLabel('Deliver via').selectOption('both');
+    await expect(page.getByLabel('Deliver via')).toHaveValue('both');
     await expect(page.locator('.notification-status')).toHaveText(
-      'System delivery is ready for this runtime.',
+      'System delivery is unavailable on this runtime.',
     );
     await page.getByRole('button', { name: /Demo release notes/ }).click();
     await waitForDetailTitle(page, 'Demo release notes');
@@ -161,13 +194,20 @@ test.describe('Dataarm Dashboard', () => {
     );
     const notificationEntry = page.locator('.notification-entry').first();
     await expect(notificationEntry).toContainText('Change detected in Demo release notes.');
-    await expect(notificationEntry).toContainText('In app + system');
+    await expect(notificationEntry).toContainText('In app');
+    await expect(notificationEntry).toContainText(
+      'System delivery is unavailable on this runtime.',
+    );
   });
 
   test('can clear recorded notification history', async ({ page }) => {
     await page.goto('/');
 
+    await page.getByRole('button', { name: /Demo release notes/ }).click();
     await page.getByRole('button', { name: 'Run target' }).click();
+    await expect(page.locator('.notification-entry').first()).toContainText(
+      'Change detected in Demo release notes.',
+    );
     await page.getByRole('button', { name: 'Clear' }).click();
 
     await expect(page.getByText('Notification history cleared.')).toBeVisible();
@@ -176,12 +216,21 @@ test.describe('Dataarm Dashboard', () => {
     );
   });
 
-  test('creates a watch root, saves a new file target, runs it, and switches back through recents', async ({
+  test('creates a watch root, saves a new file target, runs it through baseline capture and change detection, and switches back through recents', async ({
     page,
-  }) => {
-    await page.goto('/');
+  }, testInfo) => {
+    const workspacePath = testInfo.outputPath('browser-fixture-workspace');
+    const sourcePath = testInfo.outputPath('browser-release-notes.html');
+    await writeFileFixture(
+      sourcePath,
+      releaseNotesHtml('Browser fixture release 1', 'Initial browser fixture baseline'),
+    );
 
-    await page.getByLabel('Switch watch root').fill('/tmp/dataarm/browser-fixture-workspace');
+    await page.goto('/');
+    await waitForDetailTitle(page, 'Demo status board');
+
+    await page.getByLabel('Switch watch root').fill(workspacePath);
+    await expect(page.getByRole('button', { name: 'Create watch root' })).toBeEnabled();
     await page.getByRole('button', { name: 'Create watch root' }).click();
 
     await expect(page.getByText('Workspace created.')).toBeVisible();
@@ -195,7 +244,7 @@ test.describe('Dataarm Dashboard', () => {
     await fillGuidedDraft(page, {
       targetId: 'browser_release_notes',
       displayName: 'Browser release notes',
-      sourceLocator: '/tmp/dataarm/browser-release-notes.html',
+      sourceLocator: sourcePath,
       selectionSelector: '.release',
     });
 
@@ -208,6 +257,17 @@ test.describe('Dataarm Dashboard', () => {
     await waitForDetailTitle(page, 'Browser release notes');
 
     await page.getByRole('button', { name: 'Run target' }).click();
+    await expect(page.locator('.top-feedback')).toHaveText(
+      'Baseline captured for Browser release notes.',
+    );
+    await expect(page.getByRole('button', { name: 'Run target' })).toBeEnabled();
+
+    await writeFileFixture(
+      sourcePath,
+      releaseNotesHtml('Browser fixture release 2', 'Changed browser fixture content'),
+    );
+    await page.getByRole('button', { name: 'Run target' }).click();
+    await expect(page.getByRole('button', { name: 'Run target' })).toBeEnabled();
     await openArtifactSubTab(page, 'Last run');
 
     await expect(page.locator('.top-feedback')).toHaveText(
@@ -237,10 +297,21 @@ test.describe('Dataarm Dashboard', () => {
     );
   });
 
-  test('deletes a saved target from a user workspace after confirmation', async ({ page }) => {
-    await page.goto('/');
+  test('deletes a saved target from a user workspace after confirmation', async ({
+    page,
+  }, testInfo) => {
+    const workspacePath = testInfo.outputPath('browser-delete-workspace');
+    const sourcePath = testInfo.outputPath('delete-me.html');
+    await writeFileFixture(
+      sourcePath,
+      '<!doctype html><html><body><main>Delete me fixture</main></body></html>\n',
+    );
 
-    await page.getByLabel('Switch watch root').fill('/tmp/dataarm/browser-delete-workspace');
+    await page.goto('/');
+    await waitForDetailTitle(page, 'Demo status board');
+
+    await page.getByLabel('Switch watch root').fill(workspacePath);
+    await expect(page.getByRole('button', { name: 'Create watch root' })).toBeEnabled();
     await page.getByRole('button', { name: 'Create watch root' }).click();
     await expect(page.getByText('Workspace created.')).toBeVisible();
     await expect(
@@ -252,7 +323,7 @@ test.describe('Dataarm Dashboard', () => {
     await fillGuidedDraft(page, {
       targetId: 'delete_me',
       displayName: 'Delete me',
-      sourceLocator: '/tmp/dataarm/delete-me.html',
+      sourceLocator: sourcePath,
     });
     await page.getByRole('button', { name: 'Save target' }).click();
     await waitForLoadedEditor(page, 'Delete me');
@@ -277,7 +348,7 @@ test.describe('Dataarm Dashboard', () => {
     await expect(page.getByText('Baseline timeline', { exact: true })).toBeVisible();
     await expect(page.getByText('Previous compare.txt', { exact: true })).toBeVisible();
     await expect(page.getByText('Current compare.txt', { exact: true })).toBeVisible();
-    await expect(page.getByText('All systems operational')).toBeVisible();
+    await expect(page.getByText('Embedded ffhn-core path active.')).toBeVisible();
 
     await openArtifactSubTab(page, 'State');
     await expect(page.getByText('Current compare.txt', { exact: true })).toBeVisible();

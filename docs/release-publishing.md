@@ -26,7 +26,7 @@ If the workflow needs a targeted rerun against the existing tag:
 gh workflow run release.yml -f release_tag=vX.Y.Z
 ```
 
-`package-unsigned-macos.yml` remains available as a manual smoke lane, but it is no longer the public publication workflow.
+`package-adhoc-signed-macos.yml` remains available as a manual smoke lane, but it is no longer the public publication workflow.
 
 ## 8. Verify The GitHub Release Object
 
@@ -36,6 +36,8 @@ Verify the release directly:
 gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,publishedAt,url,assets
 npm run verify:github-release -- vX.Y.Z
 ```
+
+`npm run verify:github-release -- vX.Y.Z` now reuses the authenticated `gh` session directly. A separate manual `GH_TOKEN=...` export is not required.
 
 Requirements:
 
@@ -48,6 +50,7 @@ Requirements:
   - `dataarm-X.Y.Z-checksums.txt`
 
 The GitHub release object is the authoritative publication record. GitHub’s built-in source-code archive links are convenience downloads, not part of the maintained Dataarm asset inventory.
+The published release notes should also carry the first-launch macOS guidance footer that points readers to [installing-macos.md](./installing-macos.md), because current public builds are ad-hoc signed but still unnotarized.
 
 ## 9. Verify The Published Assets
 
@@ -82,13 +85,20 @@ Validate the checksums:
 
 Then confirm the manifest still describes the intended public posture:
 
-- `artifactKind` is `github-unsigned-macos-packaging`
+- `artifactKind` is `github-ad-hoc-signed-macos-packaging`
 - `productName` is `Dataarm`
 - `targetTriple` is `aarch64-apple-darwin`
-- `signing` is `disabled`
+- `signing` is `ad-hoc`
 - `notarization` is `disabled`
+- `appBundle.bundleExecutable` is `dataarm`
 - `appBundle.legalDirectory` is `Contents/SharedSupport/Legal`
+- `appBundle.nativeSmokePayload.runtimeContract` is `embedded-ffhn-core`
 - `appBundle.bundledLegalFiles` includes `LICENSE`, `NOTICE`, `PATENTS.md`, `Cargo.lock`, and `package-lock.json`
+
+The public release notes should state the current first-launch truth as well:
+
+- Finder `Open` or `Privacy & Security` -> `Open Anyway` is the primary unblock path.
+- `xattr -dr com.apple.quarantine "/Applications/Dataarm.app"` is a terminal fallback, not the primary recommendation.
 
 Remove the download directory when you are done:
 

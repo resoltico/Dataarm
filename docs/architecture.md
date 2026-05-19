@@ -35,12 +35,14 @@ The embedded runtime line is now the released `ffhn-core v8.0.0` contract with n
 
 - `App.tsx` wires the application shell together
 - `hooks/useDashboardState.ts` owns frontend state, async actions, and Tauri API calls
+- `hooks/dashboardState.helpers.ts`, `hooks/dashboardState.editor.ts`, and `hooks/dashboardState.workspace.ts` hold the hook’s state math and workflow slices instead of burying them in one file
 - `components/layout/` renders the shell, workspace rail, and main dashboard panes
 - `components/dashboard/TargetTable.tsx` is the canonical desktop target inventory surface
-- `components/dashboard/DetailPanel.tsx` owns draft preview inspection, target history, compare-diff browsing, and artifact inspection
-- `components/dashboard/TargetEditor.tsx` renders guided target authoring with a raw `target.toml` repair fallback
+- `components/dashboard/DetailPanel.tsx` composes detail-panel workflows, while `components/dashboard/detailPanel/` owns snapshot workbench, change-history, and artifact-tab internals
+- `components/dashboard/TargetEditor.tsx` composes guided authoring and repair mode, while `components/dashboard/targetEditor/` owns the guided form and raw repair editor
 - `lib/api.ts` is the canonical frontend-to-backend contract surface
-- `lib/mockDesktop.ts` provides a browser-safe mock backend for Vite and Playwright
+- `lib/browserWorkbenchClient.ts` is the browser-workbench entrypoint for Vite and Playwright
+- `lib/workbenchContract.ts` is the typed owner for target-workbench vocabulary such as status kinds, source kinds, and run-outcome labels
 - `lib/presentation.ts` holds pure formatting and presentation helpers
 
 Frontend components are presentation-only. They do not invoke Tauri directly.
@@ -54,8 +56,11 @@ Frontend components are presentation-only. They do not invoke Tauri directly.
 - `models.rs` defines serialized data contracts returned to the frontend
 - `logic/workspace.rs` owns workspace discovery, recent workspace persistence, and demo watch-root materialization
 - `logic/targets.rs` owns target reading, preview, save, delete, and run operations through `ffhn-core`
+- `logic/targets/drafts.rs` owns guided-session reconstruction and canonical contract reserialization
+- `logic/targets/storage.rs` owns target-document materialization and runtime-artifact reset helpers
 - `logic/runtime_artifacts.rs` owns typed loading of canonical runtime snapshot artifacts for history and diff browsing
-- `logic/notifications.rs` owns notification policy, delivery history, and native system-delivery attempts
+- `logic/notifications/` owns notification policy, delivery history, and native system-delivery attempts
+- `logic/workspace/` owns workspace discovery, recent-workspace persistence, and demo watch-root materialization
 - `logic/os.rs` owns native path-opening helpers
 
 The command layer routes requests. The `logic/` modules own the behavior.
@@ -93,12 +98,12 @@ Saving a target is intentionally destructive to stale runtime artifacts. After a
 
 That reset keeps the next execution aligned with the edited target definition.
 
-## Demo And Mock Paths
+## Demo And Browser Workbench Paths
 
 The repository supports two low-friction development paths:
 
 - Tauri demo workspace: `workspace.rs` materializes a local demo watch root under app data and drives the real native backend.
-- Browser mock backend: `src/lib/mockDesktop.ts` lets Vite and Playwright exercise the workbench without a native host.
+- Browser workbench bridge: `src/lib/browserWorkbenchClient.ts`, `scripts/browser-workbench/vite-plugin.mjs`, `scripts/browser-workbench/rust-bridge.mjs`, and `src-tauri/examples/browser_workbench_bridge.rs` let Vite and Playwright exercise the workbench through backend-owned logic without a native host.
 
 These paths exist to accelerate UI work. They do not replace the embedded runtime contract.
 

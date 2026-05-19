@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_imports)]
 
-#[path = "../logic/mod.rs"]
+#[path = "../src/logic/mod.rs"]
 mod logic;
-#[path = "../models.rs"]
+#[path = "../src/models.rs"]
 mod models;
 
 use crate::logic::{
@@ -21,7 +21,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tempfile::{TempDir, tempdir};
 
-type FieldtestResult<T> = Result<T, String>;
+type ReleaseValidationResult<T> = Result<T, String>;
 
 struct ScenarioOutcome {
     name: &'static str,
@@ -45,15 +45,16 @@ fn main() {
             );
         }
         Err(error) => {
-            eprintln!("FAIL fieldtest                   {error}");
+            eprintln!("FAIL release validation          {error}");
             std::process::exit(1);
         }
     }
 }
 
-fn run() -> FieldtestResult<Vec<ScenarioOutcome>> {
+fn run() -> ReleaseValidationResult<Vec<ScenarioOutcome>> {
     let include_live_web = std::env::args().any(|argument| argument == "--live");
-    let root = tempdir().map_err(|error| format!("Failed to create fieldtest root: {error}"))?;
+    let root =
+        tempdir().map_err(|error| format!("Failed to create release-validation root: {error}"))?;
     let mut outcomes = Vec::new();
 
     run_scenario(&mut outcomes, "guided_file_css", || {
@@ -84,16 +85,16 @@ fn run_scenario<F>(
     outcomes: &mut Vec<ScenarioOutcome>,
     name: &'static str,
     scenario: F,
-) -> FieldtestResult<()>
+) -> ReleaseValidationResult<()>
 where
-    F: FnOnce() -> FieldtestResult<String>,
+    F: FnOnce() -> ReleaseValidationResult<String>,
 {
     let detail = scenario().map_err(|error| format!("{name}: {error}"))?;
     outcomes.push(ScenarioOutcome { name, detail });
     Ok(())
 }
 
-fn scenario_guided_file_css(root: &Path) -> FieldtestResult<String> {
+fn scenario_guided_file_css(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "guided-file-css")?;
     let sources = workspace.path().join("sources");
     fs::create_dir_all(&sources)
@@ -138,7 +139,7 @@ Node 26.1.0
     Ok("previewed, saved, and ran a guided file target".to_owned())
 }
 
-fn scenario_guided_css_nth(root: &Path) -> FieldtestResult<String> {
+fn scenario_guided_css_nth(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "guided-css-nth")?;
     let sources = workspace.path().join("sources");
     fs::create_dir_all(&sources)
@@ -193,7 +194,7 @@ fn scenario_guided_css_nth(root: &Path) -> FieldtestResult<String> {
     Ok("selected the second CSS match through the 1-based guided nth contract".to_owned())
 }
 
-fn scenario_guided_delimiter_regex(root: &Path) -> FieldtestResult<String> {
+fn scenario_guided_delimiter_regex(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "guided-delimiter")?;
     let sources = workspace.path().join("sources");
     fs::create_dir_all(&sources)
@@ -259,7 +260,7 @@ Ignore this line too.
     Ok("extracted a regex-delimited payload through the guided contract".to_owned())
 }
 
-fn scenario_http_redirect(root: &Path) -> FieldtestResult<String> {
+fn scenario_http_redirect(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "http-redirect")?;
     let (base_url, handle) = start_http_fixture_server(BTreeMap::from([
         (
@@ -274,7 +275,7 @@ fn scenario_http_redirect(root: &Path) -> FieldtestResult<String> {
         ),
     ]));
 
-    let result = (|| -> FieldtestResult<String> {
+    let result = (|| -> ReleaseValidationResult<String> {
         let mut session = http_template_session()?;
         session.draft.target_id = "redirected_http_release".to_owned();
         session.draft.display_name = "Redirected HTTP release".to_owned();
@@ -315,7 +316,7 @@ fn scenario_http_redirect(root: &Path) -> FieldtestResult<String> {
     result
 }
 
-fn scenario_batch_mixed(root: &Path) -> FieldtestResult<String> {
+fn scenario_batch_mixed(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "batch-mixed")?;
     let sources = workspace.path().join("sources");
     fs::create_dir_all(&sources)
@@ -342,7 +343,7 @@ END PAYLOAD</main></body></html>"#,
         ),
     )]));
 
-    let result = (|| -> FieldtestResult<String> {
+    let result = (|| -> ReleaseValidationResult<String> {
         let mut file_session = file_template_session()?;
         file_session.draft.target_id = "batch_file".to_owned();
         file_session.draft.display_name = "Batch file".to_owned();
@@ -457,7 +458,7 @@ END PAYLOAD</main></body></html>"#,
     result
 }
 
-fn scenario_operator_errors() -> FieldtestResult<String> {
+fn scenario_operator_errors() -> ReleaseValidationResult<String> {
     let session = file_template_session()?;
     let duplicate_input_error = match preview_target_logic(TargetPreviewRequest {
         draft_session: Some(session),
@@ -515,7 +516,7 @@ fn scenario_operator_errors() -> FieldtestResult<String> {
     Ok("rejected mixed inputs, invalid 1-based nth indices, and traversal attempts".to_owned())
 }
 
-fn scenario_live_web(root: &Path) -> FieldtestResult<String> {
+fn scenario_live_web(root: &Path) -> ReleaseValidationResult<String> {
     let workspace = fresh_workspace(root, "live-web")?;
 
     let mut example_session = http_template_session()?;
@@ -620,11 +621,11 @@ fn scenario_live_web(root: &Path) -> FieldtestResult<String> {
     )
 }
 
-fn fresh_workspace(root: &Path, name: &str) -> FieldtestResult<TempDir> {
+fn fresh_workspace(root: &Path, name: &str) -> ReleaseValidationResult<TempDir> {
     let workspace_root = root.join(name);
     fs::create_dir_all(&workspace_root).map_err(|error| {
         format!(
-            "Failed to create fieldtest workspace root {}: {error}",
+            "Failed to create release-validation workspace root {}: {error}",
             workspace_root.display()
         )
     })?;
@@ -636,11 +637,11 @@ fn fresh_workspace(root: &Path, name: &str) -> FieldtestResult<TempDir> {
     })
 }
 
-fn file_template_session() -> FieldtestResult<TargetDraftSession> {
+fn file_template_session() -> ReleaseValidationResult<TargetDraftSession> {
     get_target_template_logic("file".to_owned()).map(|template| template.draft_session)
 }
 
-fn http_template_session() -> FieldtestResult<TargetDraftSession> {
+fn http_template_session() -> ReleaseValidationResult<TargetDraftSession> {
     get_target_template_logic("http".to_owned()).map(|template| template.draft_session)
 }
 
@@ -694,7 +695,7 @@ fn persist_guided_target(
     workspace: &Path,
     previous_directory_name: Option<&str>,
     draft_session: TargetDraftSession,
-) -> FieldtestResult<String> {
+) -> ReleaseValidationResult<String> {
     persist_target_document(
         workspace,
         &TargetSaveRequest {
@@ -705,14 +706,17 @@ fn persist_guided_target(
     )
 }
 
-fn read_current_compare_text(workspace: &Path, directory_name: &str) -> FieldtestResult<String> {
+fn read_current_compare_text(
+    workspace: &Path,
+    directory_name: &str,
+) -> ReleaseValidationResult<String> {
     let path = workspace
         .join(directory_name)
         .join("snapshots/current/compare.txt");
     fs::read_to_string(&path).map_err(|error| format!("Failed to read {}: {error}", path.display()))
 }
 
-fn ensure_contains(label: &str, actual: &str, expected: &str) -> FieldtestResult<()> {
+fn ensure_contains(label: &str, actual: &str, expected: &str) -> ReleaseValidationResult<()> {
     if actual.contains(expected) {
         Ok(())
     } else {
@@ -722,7 +726,7 @@ fn ensure_contains(label: &str, actual: &str, expected: &str) -> FieldtestResult
     }
 }
 
-fn ensure_not_contains(label: &str, actual: &str, forbidden: &str) -> FieldtestResult<()> {
+fn ensure_not_contains(label: &str, actual: &str, forbidden: &str) -> ReleaseValidationResult<()> {
     if actual.contains(forbidden) {
         Err(format!(
             "{label} unexpectedly contained {forbidden:?}. Actual payload: {actual:?}"

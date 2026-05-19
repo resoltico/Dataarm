@@ -12,7 +12,12 @@ const capabilityPath = path.join(root, 'src-tauri', 'capabilities', 'default.jso
 const viteConfigPath = path.join(root, 'vite.config.ts');
 const misePath = path.join(root, '.mise.toml');
 const workflowQualityPath = path.join(root, '.github', 'workflows', 'quality-gates.yml');
-const workflowPackagingPath = path.join(root, '.github', 'workflows', 'package-unsigned-macos.yml');
+const workflowPackagingPath = path.join(
+  root,
+  '.github',
+  'workflows',
+  'package-adhoc-signed-macos.yml',
+);
 const workflowReleasePath = path.join(root, '.github', 'workflows', 'release.yml');
 const rustToolchainPath = path.join(root, 'rust-toolchain.toml');
 
@@ -234,10 +239,10 @@ for (const packageName of qualityGates.rust?.linuxCiPackages ?? []) {
   }
 }
 if (!packagingWorkflow.includes('node-version: 26.1.0')) {
-  fail('package-unsigned-macos workflow node pin is out of sync');
+  fail('package-adhoc-signed-macos workflow node pin is out of sync');
 }
 if (!packagingWorkflow.includes('toolchain: 1.95.0')) {
-  fail('package-unsigned-macos workflow stable Rust pin is out of sync');
+  fail('package-adhoc-signed-macos workflow stable Rust pin is out of sync');
 }
 if (!releaseWorkflow.includes('node-version: 26.1.0')) {
   fail('release workflow node pin is out of sync');
@@ -247,7 +252,7 @@ if (!releaseWorkflow.includes('toolchain: 1.95.0')) {
 }
 for (const [workflowName, workflowContents] of [
   ['quality-gates', qualityWorkflow],
-  ['package-unsigned-macos', packagingWorkflow],
+  ['package-adhoc-signed-macos', packagingWorkflow],
   ['release', releaseWorkflow],
 ]) {
   if (workflowContents.includes('CARGO_TARGET_DIR:')) {

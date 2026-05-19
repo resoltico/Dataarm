@@ -11,6 +11,7 @@ import {
 const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const vendor = JSON.parse(fs.readFileSync('vendor/dmg-packaging.json', 'utf8'));
+const cargoToml = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
 
 function fail(message) {
   console.error(message);
@@ -53,6 +54,9 @@ if (vendor.internalDesktopPackageName !== pkg.name) {
 if (vendor.bundleIdentifier !== conf.identifier) {
   fail('vendor bundleIdentifier must match tauri.conf.json identifier');
 }
+if (conf.bundle?.macOS?.signingIdentity !== '-') {
+  fail('tauri.conf.json must pin ad-hoc signingIdentity "-" for macOS packaging');
+}
 if (vendor.buildScript !== 'npm run tauri:build:dmg:macos-silicon') {
   fail('vendor buildScript is out of sync');
 }
@@ -73,6 +77,11 @@ if (vendor.localOutputDirectory !== expectedDmgOutputDir) {
 }
 if (vendor.appBundleLegalDirectory !== 'Contents/SharedSupport/Legal') {
   fail('Expected appBundleLegalDirectory to pin the bundled legal directory');
+}
+if (!cargoToml.includes('default-run = "dataarm"')) {
+  fail(
+    'src-tauri/Cargo.toml must pin default-run = "dataarm" so packaging targets the desktop app',
+  );
 }
 const expectedBundledLegalFiles = {
   'SharedSupport/Legal/LICENSE': '../LICENSE',
@@ -110,5 +119,14 @@ const expectedManifestPath = repoRelativePath(
 );
 if (vendor.githubArtifactManifest !== expectedManifestPath) {
   fail('Expected vendor githubArtifactManifest to match the managed CI artifact root');
+}
+if (vendor.signing !== 'ad-hoc') {
+  fail('Expected vendor signing posture to remain ad-hoc');
+}
+if (vendor.nativeSmokeRuntimeContract !== 'embedded-ffhn-core') {
+  fail('Expected vendor nativeSmokeRuntimeContract to pin the maintained desktop runtime contract');
+}
+if (vendor.current !== 'ad-hoc-signed-apple-silicon-dmg-wired') {
+  fail('Expected vendor current posture to reflect ad-hoc signed DMG packaging');
 }
 console.log('verify-dmg-packaging: ok');

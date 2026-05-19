@@ -34,6 +34,15 @@ It is strongest when you already know the page section you want to monitor and y
 
 Current builds target Apple Silicon macOS.
 
+## Install On macOS
+
+Download the current DMG from the GitHub release page, open it, and drag `Dataarm.app` into `/Applications`.
+
+Current public builds are ad-hoc signed but not yet notarized by Apple.
+If macOS blocks the first launch, use Finder `Open` or `System Settings` -> `Privacy & Security` -> `Open Anyway` before falling back to terminal commands.
+
+The maintained first-launch steps live in [docs/installing-macos.md](./docs/installing-macos.md).
+
 ## Learn More
 
 - [Documentation index](./docs/README.md)

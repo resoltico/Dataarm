@@ -12,6 +12,7 @@ const frontendCoverageVerifier = await readFile(
   resolve('scripts/verify-frontend-coverage.mjs'),
   'utf8',
 );
+const qualityWorkflow = await readFile(resolve('.github/workflows/quality-gates.yml'), 'utf8');
 
 if (parsed.current !== 'quality-gates-wired') {
   throw new Error(`Unexpected quality-gates state: ${parsed.current}`);
@@ -70,7 +71,6 @@ const expectedNodeCommands = [
   'npm run format:check',
   'npm run lint',
   'npm run typecheck',
-  'npm run test:unit',
   'npm run build',
   'npm run verify:quality-gates',
   'npm run verify:app-version',
@@ -90,6 +90,7 @@ const expectedRustCommands = [
   'cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings',
   'cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features',
   'cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features',
+  'npm run release-validation:backend',
   'cargo deny --manifest-path src-tauri/Cargo.toml check',
   'typos .',
   'npm run hygiene:verify',
@@ -107,23 +108,28 @@ const expectedLinuxCiPackages = [
 ];
 const expectedAllCommands = [
   'npm run quality:node',
-  'npm run test:e2e',
-  'npm run verify:frontend-coverage',
+  'npm run quality:browser-workbench',
   'npm run quality:rust',
+];
+const expectedShipCommands = [
+  'npm run quality:all',
+  'npm run package:adhoc-signed:dmg:macos-silicon',
 ];
 const expectedE2EScript =
   'npm run hygiene:clean:safe && node scripts/run-playwright-tests.mjs && npm run hygiene:verify';
 const expectedNodeScript =
-  'npm run hygiene:clean:safe && npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run verify:quality-gates && npm run verify:app-version && npm run verify:runtime-dependencies && npm run verify:tooling-refresh && npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging && npm run verify:release-publishing && typos . && npm run hygiene:verify';
+  'npm run hygiene:clean:safe && npm run format:check && npm run lint && npm run typecheck && npm run build && npm run verify:quality-gates && npm run verify:app-version && npm run verify:runtime-dependencies && npm run verify:tooling-refresh && npm run verify:project-status && npm run verify:dmg-packaging && npm run verify:github-packaging && npm run verify:release-publishing && typos . && npm run hygiene:verify';
 const expectedRustScript =
-  'npm run hygiene:clean:safe && npm run verify:app-version && cargo fmt --all --check --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features && cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features && cargo deny --manifest-path src-tauri/Cargo.toml check && typos . && npm run hygiene:verify';
+  'npm run hygiene:clean:safe && npm run verify:app-version && cargo fmt --all --check --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features && cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features && npm run release-validation:backend && cargo deny --manifest-path src-tauri/Cargo.toml check && typos . && npm run hygiene:verify';
 const expectedAllScript =
-  'npm run quality:node && npm run test:e2e && npm run verify:frontend-coverage && npm run quality:rust';
+  'npm run quality:node && npm run quality:browser-workbench && npm run quality:rust';
+const expectedShipScript = 'npm run quality:all && npm run package:adhoc-signed:dmg:macos-silicon';
 const expectedMiriScript = 'node scripts/run-miri.mjs';
 const expectedPackagingScript =
   'npm run hygiene:clean:safe && npm run verify:app-version && npm run verify:dmg-packaging && npm run verify:github-packaging && npm run tauri:build:dmg:macos-silicon && node scripts/collect-github-packaging-artifacts.mjs && npm run hygiene:verify';
-const expectedFrontendCoverageScript = 'node scripts/verify-frontend-coverage.mjs';
-const expectedUnitScript = 'vitest run --coverage.enabled';
+const expectedBrowserWorkbenchScript =
+  'npm run test:unit && npm run test:e2e && node scripts/verify-frontend-coverage.mjs';
+const expectedUnitScript = 'node scripts/run-vitest-browser-workbench.mjs --coverage.enabled';
 const expectedHygieneScripts = {
   'hygiene:report': 'node scripts/report-hygiene.mjs',
   'hygiene:verify': 'node scripts/verify-hygiene.mjs',
@@ -168,6 +174,7 @@ const requiredPlaywrightCoverageSnippets = [
   "ensureManagedRootById('managed-playwright-coverage')",
   "env.DATAARM_COVERAGE = '1';",
   "env.VITE_COVERAGE = 'true';",
+  "env.VITE_DATAARM_BROWSER_BACKEND = 'browser_workbench';",
 ];
 const requiredFrontendCoverageVerifierSnippets = [
   'const expectedThresholds = {',
@@ -194,6 +201,10 @@ if (JSON.stringify(parsed.rust?.linuxCiPackages) !== JSON.stringify(expectedLinu
 
 if (JSON.stringify(parsed.all?.commands) !== JSON.stringify(expectedAllCommands)) {
   throw new Error('quality-gates all.commands is out of sync with the supported quality lane');
+}
+
+if (JSON.stringify(parsed.ship?.commands) !== JSON.stringify(expectedShipCommands)) {
+  throw new Error('quality-gates ship.commands is out of sync with the supported ship lane');
 }
 
 if (parsed.hygiene?.cargoTargetDir !== '../.dataarm-artifacts/target') {
@@ -234,9 +245,9 @@ if (pkg.scripts.lint !== 'eslint . --max-warnings 0') {
   throw new Error('package.json lint script must enforce zero-warning ESLint execution');
 }
 
-if (pkg.scripts['verify:frontend-coverage'] !== expectedFrontendCoverageScript) {
+if (pkg.scripts['quality:browser-workbench'] !== expectedBrowserWorkbenchScript) {
   throw new Error(
-    'package.json verify:frontend-coverage script is out of sync with the maintained browser coverage verifier',
+    'package.json quality:browser-workbench script is out of sync with the maintained browser-workbench proof lane',
   );
 }
 
@@ -286,6 +297,10 @@ if (pkg.scripts['quality:all'] !== expectedAllScript) {
   throw new Error('package.json quality:all script is out of sync with vendor/quality-gates.json');
 }
 
+if (pkg.scripts['quality:ship'] !== expectedShipScript) {
+  throw new Error('package.json quality:ship script is out of sync with vendor/quality-gates.json');
+}
+
 if (pkg.scripts['test:e2e'] !== expectedE2EScript) {
   throw new Error(
     'package.json test:e2e script is out of sync with the maintained Playwright lane',
@@ -320,9 +335,9 @@ if (pkg.scripts['verify:app-version'] !== 'node scripts/verify-app-version.mjs')
   );
 }
 
-if (pkg.scripts['package:unsigned:dmg:macos-silicon'] !== expectedPackagingScript) {
+if (pkg.scripts['package:adhoc-signed:dmg:macos-silicon'] !== expectedPackagingScript) {
   throw new Error(
-    'package.json package:unsigned:dmg:macos-silicon script is out of sync with vendor/quality-gates.json',
+    'package.json package:adhoc-signed:dmg:macos-silicon script is out of sync with vendor/quality-gates.json',
   );
 }
 
@@ -337,6 +352,24 @@ for (const [scriptName, expectedScript] of Object.entries(expectedHygieneScripts
 for (const scriptName of retiredScripts) {
   if (scriptName in pkg.scripts) {
     throw new Error(`package.json must not expose retired script ${scriptName}`);
+  }
+}
+
+const requiredQualityWorkflowSnippets = [
+  'quality:',
+  'desktop-surface:',
+  'runs-on: macos-15',
+  'Run Node quality gates',
+  'Run browser workbench proof lane',
+  'run: npx playwright install --with-deps && npm run quality:browser-workbench',
+  'Run Rust quality gates',
+  'Run desktop ship-surface packaging proof',
+  'run: npm run package:adhoc-signed:dmg:macos-silicon',
+];
+
+for (const snippet of requiredQualityWorkflowSnippets) {
+  if (!qualityWorkflow.includes(snippet)) {
+    throw new Error(`.github/workflows/quality-gates.yml is missing required snippet: ${snippet}`);
   }
 }
 

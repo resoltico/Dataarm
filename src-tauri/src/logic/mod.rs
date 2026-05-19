@@ -2,6 +2,7 @@ mod notifications;
 mod os;
 mod runtime_artifacts;
 mod targets;
+mod workbench_fixtures;
 mod workspace;
 
 pub(crate) use notifications::{
@@ -13,9 +14,11 @@ pub(crate) use os::{open_target_path_logic, open_workspace_path_logic};
 #[allow(unused_imports)]
 pub(crate) use targets::{
     delete_target_logic, execute_target_run, execute_workspace_run, get_target_template_logic,
-    persist_target_document, preview_target_logic, read_target_logic, save_target_logic,
+    persist_target_document, preview_target_logic, read_target_from_workspace, read_target_logic,
+    save_target_logic,
 };
+#[allow(unused_imports)]
 pub(crate) use workspace::{
-    bootstrap_logic, create_workspace_logic, current_workspace, open_workspace_logic,
-    refresh_workspace_logic, workspace_snapshot,
+    bootstrap_logic, create_workspace_logic, current_workspace, inventory_targets,
+    open_workspace_logic, refresh_workspace_logic, workspace_snapshot,
 };

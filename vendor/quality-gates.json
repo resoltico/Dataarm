@@ -16,7 +16,6 @@
       "npm run format:check",
       "npm run lint",
       "npm run typecheck",
-      "npm run test:unit",
       "npm run build",
       "npm run verify:quality-gates",
       "npm run verify:app-version",
@@ -37,7 +36,7 @@
     "artifactRoot": "../.dataarm-artifacts/coverage",
     "lines": 100,
     "branches": 100,
-    "note": "The maintained frontend coverage contract enforces 100% line and 100% branch coverage from the unit and component lane, while the Playwright workbench lane must still exercise instrumented runtime files through real GUI flows instead of filler assertions."
+    "note": "The maintained browser-workbench proof lane is self-sufficient: it runs the unit/component coverage lane, then the Playwright workbench lane, and finally verifies 100% line and branch coverage plus instrumented runtime-file evidence without filler assertions."
   },
   "rust": {
     "stableGates": [
@@ -47,6 +46,7 @@
       "cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings",
       "cargo check --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features",
       "cargo test --manifest-path src-tauri/Cargo.toml --workspace --all-features",
+      "npm run release-validation:backend",
       "cargo deny --manifest-path src-tauri/Cargo.toml check",
       "typos .",
       "npm run hygiene:verify"
@@ -68,9 +68,14 @@
   "all": {
     "commands": [
       "npm run quality:node",
-      "npm run test:e2e",
-      "npm run verify:frontend-coverage",
+      "npm run quality:browser-workbench",
       "npm run quality:rust"
+    ]
+  },
+  "ship": {
+    "commands": [
+      "npm run quality:all",
+      "npm run package:adhoc-signed:dmg:macos-silicon"
     ]
   },
   "hygiene": {
@@ -88,5 +93,5 @@
     "command": "node scripts/run-miri.mjs",
     "note": "Pinned nightly chosen because miri is nightly-only; the wrapper targets one desktop-owned embedded-runtime seam test and adds -Zmiri-disable-isolation because Tauri startup probes the host executable path before any tests run."
   },
-  "note": "This file defines the enforced project quality posture. The Node runtime is pinned through .mise.toml, workflows are required to match that pin, the Ubuntu quality workflow must install the documented Tauri Linux development packages before Rust lanes run, the frontend coverage contract requires 100% line and branch coverage plus instrumented Playwright flow evidence, and the hygiene lane keeps heavyweight build artifacts in managed sibling roots instead of repo-local target trees. GitHub workflows must not override Cargo artifact directories with CARGO_TARGET_DIR or CARGO_BUILD_BUILD_DIR; the checked-in .cargo/config.toml contract remains the single source of truth."
+  "note": "This file defines the enforced project quality posture. The Node runtime is pinned through .mise.toml, workflows are required to match that pin, the Ubuntu quality workflow must install the documented Tauri Linux development packages before Rust lanes run, the offline backend release-validation lane is part of the stable Rust lane, the frontend coverage contract requires 100% line and branch coverage plus instrumented browser-workbench flow evidence, the ship lane requires an ad-hoc signed DMG proof on macOS, and the hygiene lane keeps heavyweight build artifacts in managed sibling roots instead of repo-local target trees. GitHub workflows must not override Cargo artifact directories with CARGO_TARGET_DIR or CARGO_BUILD_BUILD_DIR; the checked-in .cargo/config.toml contract remains the single source of truth."
 }

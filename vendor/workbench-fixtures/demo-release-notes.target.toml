@@ -1,0 +1,26 @@
+schema_name = "ffhn.target"
+schema_version = 4
+target_id = "release_notes"
+display_name = "Demo release notes"
+enabled = true
+
+[target]
+kind = "file"
+file_path = "__DATAARM_DEMO_PATH__/sources/release-notes.html"
+
+[fetch]
+engine = "file"
+max_bytes = 2000000
+
+[selection]
+kind = "css_selector"
+selector = ".release"
+match = "single"
+
+[compare]
+basis = "text"
+whitespace = "normalize"
+rewrite_urls = false
+
+[[compare.canonicalization]]
+kind = "trim"

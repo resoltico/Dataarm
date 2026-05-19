@@ -82,7 +82,7 @@ Deletes disposable run output without removing the full dependency or compiler c
 - `npm run quality:node`
 - `npm run quality:rust`
 - `npm run test:e2e`
-- `npm run package:unsigned:dmg:macos-silicon`
+- `npm run package:adhoc-signed:dmg:macos-silicon`
 
 It removes:
 

@@ -141,7 +141,7 @@ export function makeDocument(overrides: Partial<TargetDocumentRecord> = {}): Tar
       compareCanonicalizers: [{ kind: 'trim', pattern: null, flags: [] }],
       storageHistoryLimit: 20,
     },
-    contractSeed: {},
+    contractSeedToml: 'schema_name = "ffhn.target"\n',
   };
 
   return {

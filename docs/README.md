@@ -7,6 +7,7 @@ This directory holds the maintained project documentation for Dataarm.
 | [architecture.md](./architecture.md)             | Embedded runtime call graph, state ownership, source layout, and packaging boundaries |
 | [developer-guide.md](./developer-guide.md)       | Setup, local development loops, quality gates, and native packaging commands          |
 | [hygiene.md](./hygiene.md)                       | Managed artifact roots, cleanup commands, and hygiene invariants                      |
+| [installing-macos.md](./installing-macos.md)     | End-user install and first-launch guidance for the public macOS app                   |
 | [release-protocol.md](./release-protocol.md)     | Release overview: local preflight, release branch flow, merge, and tag handoff        |
 | [release-publishing.md](./release-publishing.md) | Tag-triggered GitHub release publication, asset inventory, and post-tag verification  |
 

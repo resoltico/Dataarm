@@ -1,26 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import {
-  bootstrap,
-  clearNotificationFeed,
-  createWorkspace,
-  deleteTarget,
-  getTargetTemplate,
-  openTargetPath,
-  openWorkspace,
-  openWorkspacePath,
-  previewTarget,
-  readTarget,
-  refreshWorkspace,
-  runTarget,
-  runWorkspace,
-  saveTarget,
-  updateNotificationSettings,
-} from '../lib/api';
 import type {
   ActionFeedback,
-  AsyncState,
   BatchRunResult,
-  NotificationRecord,
   NotificationSettings,
   TargetDocumentRecord,
   TargetDraft,
@@ -31,110 +12,50 @@ import type {
   TargetTemplateKind,
   WorkspaceSnapshot,
 } from '../types';
+import {
+  addDraftCanonicalizer,
+  cloneDraftSession,
+  createFeedback,
+  dashboardStats,
+  editorSignature,
+  initialState,
+  removeDraftCanonicalizer,
+  updateDraftCanonicalizer,
+  updateDraftField,
+} from './dashboardState.helpers';
+import type { ArtifactTab, DetailTab } from './dashboardState.helpers';
+import {
+  clearNotificationFeedAction,
+  createWorkspaceFromInputAction,
+  deleteSelectedTargetAction,
+  type DashboardActionsContext,
+  openRecentWorkspaceAction,
+  openSelectedTargetPathAction,
+  openWorkspaceFromInputAction,
+  openWorkspacePathAction,
+  previewTargetAction,
+  resetDraftAction,
+  runSelectedTargetAction,
+  runWorkspaceAction,
+  saveTargetAction,
+  selectTargetAction,
+  setDraftKindAction,
+  setSelectionKindAction,
+  setSelectionMatchAction,
+  startNewTargetAction,
+  updateNotificationSettingsAction,
+} from './dashboardState.actions';
+import { loadTargetDocumentIntoState, type TargetDocumentLoadMode } from './dashboardState.editor';
+import {
+  bootstrapWorkspaceIntoState,
+  hydrateWorkspaceSnapshotIntoState,
+  type WorkspaceHydrationMode,
+} from './dashboardState.workspace';
 
-type DetailTab = 'changes' | 'config' | 'artifacts';
-type ArtifactTab = 'preview' | 'run' | 'state' | 'batch';
-
-function initialState<T>(loading = true): AsyncState<T> {
-  return { loading, error: null, data: null };
-}
+export { errorMessage } from './dashboardState.helpers';
 
 function useAsyncState<T>(loading = true) {
   return useState(() => initialState<T>(loading));
-}
-
-function createFeedback(tone: ActionFeedback['tone'], message: string): ActionFeedback {
-  return { tone, message };
-}
-
-function notificationFeedback(record: NotificationRecord): ActionFeedback {
-  return createFeedback(record.tone, record.title);
-}
-
-function asRecord(value: unknown) {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function readRunOutcome(value: unknown) {
-  const report = asRecord(value);
-  const result = asRecord(report?.result);
-  return typeof result?.outcome === 'string' ? result.outcome : null;
-}
-
-function cloneDraftSession(session: TargetDraftSession | null) {
-  return session == null ? null : (JSON.parse(JSON.stringify(session)) as TargetDraftSession);
-}
-
-function editorSignature(session: TargetDraftSession | null, toml: string) {
-  return session == null ? toml : JSON.stringify(session);
-}
-
-function normalizeDraftForKind(draft: TargetDraft, kind: TargetTemplateKind): TargetDraft {
-  if (kind === 'http') {
-    return {
-      ...draft,
-      kind,
-      sourceLocator:
-        draft.sourceLocator.startsWith('http://') || draft.sourceLocator.startsWith('https://')
-          ? draft.sourceLocator
-          : 'https://example.com',
-      fetchMethod: 'GET',
-      fetchTimeoutMs: draft.fetchTimeoutMs ?? 15000,
-      fetchUserAgent: draft.fetchUserAgent ?? 'dataarm/template',
-      fetchFollowRedirects: draft.fetchFollowRedirects ?? true,
-      fetchAccept: draft.fetchAccept ?? 'text/html,application/xhtml+xml',
-    };
-  }
-
-  return {
-    ...draft,
-    kind,
-    sourceLocator: draft.sourceLocator.startsWith('/')
-      ? draft.sourceLocator
-      : '/absolute/path/to/page.html',
-    fetchMethod: null,
-    fetchTimeoutMs: null,
-    fetchUserAgent: null,
-    fetchFollowRedirects: null,
-    fetchAccept: null,
-  };
-}
-
-function normalizeDraftForSelectionKind(
-  draft: TargetDraft,
-  selectionKind: TargetDraft['selectionKind'],
-): TargetDraft {
-  if (selectionKind === 'css_selector') {
-    return {
-      ...draft,
-      selectionKind,
-      selectionSelector: draft.selectionSelector ?? 'main',
-      selectionStart: null,
-      selectionEnd: null,
-      selectionDelimiterMode: null,
-      selectionIncludeStart: null,
-      selectionIncludeEnd: null,
-      selectionRegexFlags: [],
-    };
-  }
-
-  return {
-    ...draft,
-    selectionKind,
-    selectionSelector: null,
-    selectionStart: draft.selectionStart ?? '<main>',
-    selectionEnd: draft.selectionEnd ?? '</main>',
-    selectionDelimiterMode: draft.selectionDelimiterMode ?? 'literal',
-    selectionIncludeStart: draft.selectionIncludeStart ?? false,
-    selectionIncludeEnd: draft.selectionIncludeEnd ?? false,
-    selectionRegexFlags: draft.selectionRegexFlags,
-  };
-}
-
-export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }
 
 export function useDashboardState() {
@@ -161,6 +82,7 @@ export function useDashboardState() {
   const [detailTab, setDetailTab] = useState<DetailTab>('changes');
   const [artifactTab, setArtifactTab] = useState<ArtifactTab>('preview');
   const documentLoadSequence = useRef(0);
+  const workspaceUpdateSequence = useRef(0);
 
   const workspaceTargets = workspace.data?.targets;
   const targets = useMemo(() => workspaceTargets ?? [], [workspaceTargets]);
@@ -200,6 +122,15 @@ export function useDashboardState() {
 
   function cancelDocumentLoad() {
     documentLoadSequence.current += 1;
+  }
+
+  function beginWorkspaceUpdate() {
+    workspaceUpdateSequence.current += 1;
+    return workspaceUpdateSequence.current;
+  }
+
+  function isCurrentWorkspaceUpdate(updateId: number) {
+    return workspaceUpdateSequence.current === updateId;
   }
 
   function setFeedback(tone: ActionFeedback['tone'], message: string) {
@@ -283,133 +214,83 @@ export function useDashboardState() {
   }
 
   function setDraftField<K extends keyof TargetDraft>(field: K, value: TargetDraft[K]) {
-    updateGuidedDraft((draft) => ({
-      ...draft,
-      [field]: value,
-    }));
+    updateGuidedDraft((draft) => updateDraftField(draft, field, value));
   }
 
-  function setDraftKind(kind: TargetTemplateKind) {
-    updateGuidedDraft((draft) => normalizeDraftForKind(draft, kind));
-  }
-
-  function setSelectionKind(kind: TargetDraft['selectionKind']) {
-    updateGuidedDraft((draft) => normalizeDraftForSelectionKind(draft, kind));
-  }
-
-  function setSelectionMatch(match: TargetDraft['selectionMatch']) {
-    updateGuidedDraft((draft) => ({
-      ...draft,
-      selectionMatch: match,
-      selectionIndex: match === 'nth' ? (draft.selectionIndex ?? 1) : null,
-    }));
-  }
-
-  function addCanonicalizer() {
-    updateGuidedDraft((draft) => ({
-      ...draft,
-      compareCanonicalizers: [
-        ...draft.compareCanonicalizers,
-        { kind: 'trim', pattern: null, flags: [] },
-      ],
-    }));
-  }
-
-  function updateCanonicalizer(
-    index: number,
-    updater: (canonicalizer: TargetDraftCanonicalizer) => TargetDraftCanonicalizer,
-  ) {
-    updateGuidedDraft((draft) => ({
-      ...draft,
-      compareCanonicalizers: draft.compareCanonicalizers.map((canonicalizer, currentIndex) =>
-        currentIndex === index ? updater(canonicalizer) : canonicalizer,
-      ),
-    }));
-  }
-
-  function removeCanonicalizer(index: number) {
-    updateGuidedDraft((draft) => ({
-      ...draft,
-      compareCanonicalizers: draft.compareCanonicalizers.filter(
-        (_, currentIndex) => currentIndex !== index,
-      ),
-    }));
-  }
-
-  function applyWorkspaceSnapshot(
-    snapshot: WorkspaceSnapshot,
-    preferredDirectoryName: string | null,
-  ) {
-    setWorkspace({ loading: false, error: null, data: snapshot });
-    setWorkspaceInput('');
-    const nextDirectoryName =
-      snapshot.targets.find((target) => target.directoryName === preferredDirectoryName)
-        ?.directoryName ??
-      snapshot.targets[0]?.directoryName ??
-      null;
-
-    setSelectedDirectoryName(nextDirectoryName);
-    return nextDirectoryName;
-  }
-
-  async function loadTargetDocument(directoryName: string) {
-    const loadId = beginDocumentLoad();
-    setDocument(initialState());
-    setDraftSession(null);
-    setDraftToml('');
-    setDirty(false);
-    setEditorMode('existing');
-    setDetailTab('changes');
-    setArtifactTab('preview');
-    clearInspector();
-
-    try {
-      const record = await readTarget(directoryName);
-      if (!isCurrentDocumentLoad(loadId)) {
-        return;
-      }
-      setDocument({ loading: false, error: null, data: record });
-      primeEditorBaseline(record.guidedSession, record.canonicalToml ?? record.rawToml);
-      setEditorMode('existing');
-    } catch (error) {
-      if (!isCurrentDocumentLoad(loadId)) {
-        return;
-      }
-      setDocument({ loading: false, error: errorMessage(error), data: null });
-      setFeedback('error', errorMessage(error));
-    }
+  async function loadTargetDocument(directoryName: string, loadMode: TargetDocumentLoadMode) {
+    await loadTargetDocumentIntoState(editorContext, directoryName, loadMode);
   }
 
   async function hydrateWorkspaceSnapshot(
     snapshot: WorkspaceSnapshot,
     preferredDirectoryName: string | null,
+    hydrationMode: WorkspaceHydrationMode,
   ) {
-    const nextDirectoryName = applyWorkspaceSnapshot(snapshot, preferredDirectoryName);
-    if (nextDirectoryName) {
-      await loadTargetDocument(nextDirectoryName);
-    } else {
-      clearEditor();
-    }
+    await hydrateWorkspaceSnapshotIntoState(
+      workspaceLifecycleContext,
+      snapshot,
+      preferredDirectoryName,
+      hydrationMode,
+    );
   }
 
   async function bootstrapApp(isActive: () => boolean) {
-    try {
-      const payload = await bootstrap();
-      if (!isActive()) {
-        return;
-      }
-
-      await hydrateWorkspaceSnapshot(payload.workspace, selectedDirectoryName);
-    } catch (error) {
-      if (!isActive()) {
-        return;
-      }
-
-      const message = errorMessage(error);
-      setWorkspace({ loading: false, error: message, data: null });
-      setFeedback('error', message);
-    }
+    await bootstrapWorkspaceIntoState(workspaceLifecycleContext, isActive);
   }
+
+  const workspaceLifecycleContext = {
+    beginWorkspaceUpdate,
+    isCurrentWorkspaceUpdate,
+    setWorkspace,
+    setWorkspaceInput,
+    setSelectedDirectoryName,
+    selectedDirectoryName,
+    setOpeningWorkspace,
+    setFeedback,
+    setActionFeedback,
+    confirmDiscardDraft,
+    clearEditor,
+    loadTargetDocument,
+  };
+
+  const editorContext = {
+    beginWorkspaceUpdate,
+    isCurrentWorkspaceUpdate,
+    beginDocumentLoad,
+    isCurrentDocumentLoad,
+    cancelDocumentLoad,
+    setDocument,
+    setDraftSession,
+    setDraftToml,
+    setDirty,
+    setEditorMode,
+    setDetailTab,
+    setArtifactTab,
+    clearInspector,
+    primeEditorBaseline,
+    applyEditorState,
+    setPreview,
+    setLastRun,
+    setLastBatch,
+    setSaving,
+    setRunningTarget,
+    setRunningWorkspace,
+    setActionFeedback,
+    setFeedback,
+    hydrateWorkspaceSnapshot,
+    draftSession,
+    draftToml,
+    workspaceSummary,
+    selectedDirectoryName,
+    selectedTarget,
+    hasUnsavedWork,
+    loadingTarget,
+  };
+
+  const newTargetContext = {
+    ...editorContext,
+    setSelectedDirectoryName,
+  };
 
   const bootstrapOnMount = useEffectEvent((isActive: () => boolean) => {
     void bootstrapApp(isActive);
@@ -425,371 +306,126 @@ export function useDashboardState() {
     };
   }, []);
 
+  const actionContext: DashboardActionsContext = {
+    workspaceLoading: workspace.loading,
+    openingWorkspace,
+    loadingTarget,
+    selectedDirectoryName,
+    selectedTarget,
+    workspaceSummary,
+    workspaceInput,
+    hasUnsavedWork,
+    editorContext,
+    newTargetContext,
+    workspaceLifecycleContext,
+    beginWorkspaceUpdate,
+    isCurrentWorkspaceUpdate,
+    hydrateWorkspaceSnapshot,
+    setFeedback,
+    setDirty,
+    applyEditorState,
+    cloneBaselineSession: () => cloneDraftSession(editorBaselineSession),
+    editorBaselineToml,
+    updateGuidedDraft,
+    addCanonicalizerToDraft: () => {
+      updateGuidedDraft(addDraftCanonicalizer);
+    },
+    updateCanonicalizerInDraft: (index, updater) => {
+      updateGuidedDraft((draft) => updateDraftCanonicalizer(draft, index, updater));
+    },
+    removeCanonicalizerFromDraft: (index) => {
+      updateGuidedDraft((draft) => removeDraftCanonicalizer(draft, index));
+    },
+  };
+
   async function handleSelectTarget(directoryName: string) {
-    if (workspace.loading || openingWorkspace) {
-      return;
-    }
-    if (directoryName === selectedDirectoryName && !loadingTarget) {
-      return;
-    }
-    if (!confirmDiscardDraft()) {
-      return;
-    }
-
-    setSelectedDirectoryName(directoryName);
-    await loadTargetDocument(directoryName);
-  }
-
-  async function loadNewTargetTemplate(kind: TargetTemplateKind) {
-    const loadId = beginDocumentLoad();
-    setSelectedDirectoryName(null);
-    setEditorMode(kind);
-    setDocument(initialState());
-    setDraftSession(null);
-    setDraftToml('');
-    setDirty(false);
-    setDetailTab('config');
-    setArtifactTab('preview');
-    clearInspector();
-
-    try {
-      const template = await getTargetTemplate(kind);
-      if (!isCurrentDocumentLoad(loadId)) {
-        return;
-      }
-      setDocument({ loading: false, error: null, data: null });
-      primeEditorBaseline(template.draftSession, template.canonicalToml);
-      setEditorMode(kind);
-      setActionFeedback(createFeedback('info', `Loaded the ${kind} target template.`));
-    } catch (error) {
-      if (!isCurrentDocumentLoad(loadId)) {
-        return;
-      }
-      const message = errorMessage(error);
-      setDocument({ loading: false, error: message, data: null });
-      setFeedback('error', message);
-    }
+    await selectTargetAction(actionContext, directoryName);
   }
 
   async function handleStartNewTarget(kind: TargetTemplateKind) {
-    if (workspace.loading || openingWorkspace) {
-      return;
-    }
-    if (!confirmDiscardDraft()) {
-      return;
-    }
-
-    await loadNewTargetTemplate(kind);
+    await startNewTargetAction(actionContext, kind);
   }
 
   async function handlePreview() {
-    if (loadingTarget) {
-      return;
-    }
-
-    if (draftSession == null && !draftToml.trim()) {
-      setFeedback('warning', 'The target document is empty.');
-      return;
-    }
-
-    setPreview(initialState());
-
-    try {
-      const nextPreview = await previewTarget(
-        draftSession ? { draftSession } : { rawToml: draftToml },
-      );
-      setPreview({ loading: false, error: null, data: nextPreview });
-      applyEditorState(nextPreview.draftSession, nextPreview.canonicalToml, {
-        clearInspector: false,
-      });
-      setArtifactTab('preview');
-      setDetailTab('changes');
-      setFeedback('success', 'Preview refreshed from canonical FFHN runtime artifacts.');
-    } catch (error) {
-      const message = errorMessage(error);
-      setPreview({ loading: false, error: message, data: null });
-      setArtifactTab('preview');
-      setDetailTab('changes');
-      setFeedback('error', message);
-    }
+    await previewTargetAction(actionContext);
   }
 
   async function handleSave() {
-    if (loadingTarget) {
-      return;
-    }
-    if (!workspaceSummary) {
-      setFeedback('error', 'Open a workspace before saving targets.');
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const result = await saveTarget(
-        draftSession
-          ? {
-              previousDirectoryName: selectedDirectoryName,
-              draftSession,
-            }
-          : {
-              previousDirectoryName: selectedDirectoryName,
-              rawToml: draftToml,
-            },
-      );
-      await hydrateWorkspaceSnapshot(result.workspace, result.directoryName);
-      setDirty(false);
-      setFeedback('success', 'Target saved. Baseline artifacts were reset for a clean next run.');
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    } finally {
-      setSaving(false);
-    }
+    await saveTargetAction(actionContext);
   }
 
   async function handleDeleteSelectedTarget() {
-    if (loadingTarget) {
-      return;
-    }
-    if (!workspaceSummary || !selectedTarget) {
-      return;
-    }
-    if (!window.confirm(`Delete ${selectedTarget.displayName ?? selectedTarget.directoryName}?`)) {
-      return;
-    }
-
-    try {
-      const snapshot = await deleteTarget(selectedTarget.directoryName);
-      await hydrateWorkspaceSnapshot(snapshot, selectedDirectoryName);
-      setFeedback('success', 'Target deleted.');
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    }
+    await deleteSelectedTargetAction(actionContext);
   }
 
   async function handleRunSelectedTarget() {
-    if (loadingTarget) {
-      return;
-    }
-    if (!workspaceSummary || !selectedTarget) {
-      return;
-    }
-    if (hasUnsavedWork) {
-      setFeedback('warning', 'Save or reset the draft before running the saved target.');
-      return;
-    }
-
-    setRunningTarget(true);
-    setLastRun(initialState());
-
-    try {
-      const result = await runTarget(selectedTarget.directoryName);
-      setLastRun({ loading: false, error: null, data: result });
-      await hydrateWorkspaceSnapshot(result.workspace, result.directoryName);
-      if (result.notification?.deliveredChannels.includes('in_app')) {
-        setActionFeedback(notificationFeedback(result.notification));
-      } else {
-        const outcome = readRunOutcome(result.runReport);
-        setFeedback(
-          outcome === 'changed' ? 'warning' : 'success',
-          outcome ? `Run finished with outcome ${outcome}.` : 'Run finished.',
-        );
-      }
-    } catch (error) {
-      const message = errorMessage(error);
-      setLastRun({ loading: false, error: message, data: null });
-      try {
-        const snapshot = await refreshWorkspace();
-        await hydrateWorkspaceSnapshot(snapshot, selectedTarget.directoryName);
-      } catch {
-        // Preserve the original run failure if workspace refresh also fails.
-      }
-      setFeedback('error', message);
-    } finally {
-      setRunningTarget(false);
-    }
+    await runSelectedTargetAction(actionContext);
   }
 
   async function handleRunWorkspace() {
-    if (loadingTarget) {
-      return;
-    }
-    if (!workspaceSummary) {
-      return;
-    }
-    if (hasUnsavedWork) {
-      setFeedback('warning', 'Save or reset the draft before running the workspace.');
-      return;
-    }
-
-    setRunningWorkspace(true);
-    setLastBatch(initialState());
-
-    try {
-      const result = await runWorkspace();
-      setLastBatch({ loading: false, error: null, data: result });
-      await hydrateWorkspaceSnapshot(result.workspace, selectedTarget?.directoryName ?? null);
-      if (result.notification?.deliveredChannels.includes('in_app')) {
-        setActionFeedback(notificationFeedback(result.notification));
-      } else {
-        setFeedback('success', 'Workspace batch run finished.');
-      }
-    } catch (error) {
-      const message = errorMessage(error);
-      setLastBatch({ loading: false, error: message, data: null });
-      try {
-        const snapshot = await refreshWorkspace();
-        await hydrateWorkspaceSnapshot(snapshot, selectedTarget?.directoryName ?? null);
-      } catch {
-        // Preserve the original batch-run failure if workspace refresh also fails.
-      }
-      setFeedback('error', message);
-    } finally {
-      setRunningWorkspace(false);
-    }
-  }
-
-  async function handleOpenWorkspacePath() {
-    if (!workspaceSummary) {
-      return;
-    }
-
-    try {
-      await openWorkspacePath();
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    }
-  }
-
-  async function handleOpenSelectedTargetPath() {
-    if (loadingTarget) {
-      return;
-    }
-    if (!selectedTarget) {
-      return;
-    }
-
-    try {
-      await openTargetPath(selectedTarget.directoryName);
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    }
-  }
-
-  async function handleOpenWorkspaceRequest(path?: string) {
-    if (!confirmDiscardDraft()) {
-      return;
-    }
-
-    setOpeningWorkspace(true);
-
-    try {
-      const snapshot = await openWorkspace(path);
-      await hydrateWorkspaceSnapshot(snapshot, selectedDirectoryName);
-      setFeedback('success', 'Workspace loaded.');
-    } catch (error) {
-      const message = errorMessage(error);
-      setFeedback('error', message);
-    } finally {
-      setOpeningWorkspace(false);
-    }
+    await runWorkspaceAction(actionContext);
   }
 
   async function handleOpenWorkspaceFromInput() {
-    const path = workspaceInput.trim();
-    await handleOpenWorkspaceRequest(path.length > 0 ? path : undefined);
-  }
-
-  async function handleOpenRecentWorkspace(path: string) {
-    await handleOpenWorkspaceRequest(path);
+    await openWorkspaceFromInputAction(actionContext);
   }
 
   async function handleCreateWorkspaceFromInput() {
-    if (!confirmDiscardDraft()) {
-      return;
-    }
-    const path = workspaceInput.trim();
-    if (!path) {
-      setFeedback('warning', 'Enter a workspace path first.');
-      return;
-    }
+    await createWorkspaceFromInputAction(actionContext);
+  }
 
-    setOpeningWorkspace(true);
+  async function handleOpenRecentWorkspace(path: string) {
+    await openRecentWorkspaceAction(actionContext, path);
+  }
 
-    try {
-      const snapshot = await createWorkspace(path);
-      await hydrateWorkspaceSnapshot(snapshot, selectedDirectoryName);
-      setFeedback('success', 'Workspace created.');
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    } finally {
-      setOpeningWorkspace(false);
-    }
+  async function handleOpenWorkspacePath() {
+    await openWorkspacePathAction(actionContext);
+  }
+
+  async function handleOpenSelectedTargetPath() {
+    await openSelectedTargetPathAction(actionContext);
   }
 
   async function handleUpdateNotificationSettings(settings: NotificationSettings) {
-    try {
-      const snapshot = await updateNotificationSettings(settings);
-      await hydrateWorkspaceSnapshot(snapshot, selectedTarget?.directoryName ?? null);
-      const permissionState = snapshot.notificationCenter.permissionState;
-      if (
-        (settings.delivery === 'system' || settings.delivery === 'both') &&
-        permissionState !== 'granted'
-      ) {
-        setFeedback('warning', 'System delivery is not ready on this runtime.');
-        return;
-      }
-      setFeedback('success', 'Notification settings updated.');
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    }
+    await updateNotificationSettingsAction(actionContext, settings);
   }
 
   async function handleClearNotificationFeed() {
-    try {
-      const snapshot = await clearNotificationFeed();
-      await hydrateWorkspaceSnapshot(snapshot, selectedTarget?.directoryName ?? null);
-      setFeedback('info', 'Notification history cleared.');
-    } catch (error) {
-      setFeedback('error', errorMessage(error));
-    }
+    await clearNotificationFeedAction(actionContext);
   }
 
   function handleResetDraft() {
-    if (loadingTarget) {
-      return;
-    }
-    applyEditorState(cloneDraftSession(editorBaselineSession), editorBaselineToml);
-    setDirty(false);
+    resetDraftAction(actionContext);
   }
 
-  const stats = useMemo(
-    () => ({
-      total: targets.length,
-      runnable: targets.filter((target) => target.runnableTargetId != null).length,
-      ready: targets.filter((target) => target.statusKind === 'ready').length,
-      changed: targets.filter(
-        (target) => target.statusKind === 'changed' || target.lastRunOutcome === 'changed',
-      ).length,
-      firstRun: targets.filter((target) => target.statusKind === 'pending').length,
-      attention: targets.filter(
-        (target) =>
-          target.errorMessage != null ||
-          [
-            'invalid_config',
-            'unavailable_target',
-            'invalid_state',
-            'incompatible_baseline',
-            'integrity_mismatch',
-            'directory_invalid',
-            'status_error',
-            'failed_permanent',
-            'failed_transient',
-          ].includes(target.statusKind),
-      ).length,
-    }),
-    [targets],
-  );
+  function setDraftKind(kind: TargetTemplateKind) {
+    setDraftKindAction(actionContext, kind);
+  }
+
+  function setSelectionKind(kind: TargetDraft['selectionKind']) {
+    setSelectionKindAction(actionContext, kind);
+  }
+
+  function setSelectionMatch(match: TargetDraft['selectionMatch']) {
+    setSelectionMatchAction(actionContext, match);
+  }
+
+  function addCanonicalizer() {
+    actionContext.addCanonicalizerToDraft();
+  }
+
+  function updateCanonicalizer(
+    index: number,
+    updater: (canonicalizer: TargetDraftCanonicalizer) => TargetDraftCanonicalizer,
+  ) {
+    actionContext.updateCanonicalizerInDraft(index, updater);
+  }
+
+  function removeCanonicalizer(index: number) {
+    actionContext.removeCanonicalizerFromDraft(index);
+  }
+
+  const stats = useMemo(() => dashboardStats(workspace.data), [workspace.data]);
 
   return {
     workspace,

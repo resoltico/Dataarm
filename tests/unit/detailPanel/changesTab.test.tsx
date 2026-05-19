@@ -1,13 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { DetailPanel } from '../../src/components/dashboard/DetailPanel';
-import {
-  makeDashboardState,
-  makeDocument,
-  makeSnapshotArtifact,
-  makeTarget,
-  makeWorkspaceSnapshot,
-} from './fixtures';
+import { DetailPanel } from '../../../src/components/dashboard/DetailPanel';
+import { makeDashboardState, makeDocument, makeSnapshotArtifact, makeTarget } from '../fixtures';
 
 function guidedSession() {
   const document = makeDocument();
@@ -21,7 +15,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe('DetailPanel', () => {
+describe('DetailPanel changes tab', () => {
   it('renders draft titles, preview loading, preview errors, and preview results', () => {
     const { rerender } = render(
       <DetailPanel
@@ -93,7 +87,7 @@ describe('DetailPanel', () => {
               canonicalToml: 'target_id = "release_digest"\n',
               draftSession: guidedSession(),
               statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
-              dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'initialized' } },
+              dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'initialized' } },
               previewSnapshot: makeSnapshotArtifact(),
               previewArtifactIssues: [],
             },
@@ -107,7 +101,7 @@ describe('DetailPanel', () => {
     expect(screen.getByText('Preview status report')).toBeTruthy();
   });
 
-  it('renders empty, never-run, changed, and baseline-history states for saved targets', () => {
+  it('renders saved-target change states and baseline history', () => {
     const handleRunSelectedTarget = vi.fn();
     const { rerender } = render(
       <DetailPanel
@@ -248,271 +242,67 @@ describe('DetailPanel', () => {
     ).toBeTruthy();
   });
 
-  it('renders preview, run, state, and batch artifact tabs with fallbacks', () => {
-    const setArtifactTab = vi.fn();
-    const workspaceSnapshot = makeDashboardState().workspace.data ?? makeWorkspaceSnapshot();
+  it('surfaces running-state placeholders, preview artifact review, and unsupported outcomes', () => {
+    const handleSave = vi.fn();
+    const setDetailTab = vi.fn();
+    const previewSnapshot = makeSnapshotArtifact({
+      compareText: 'Current compare\nShared',
+      extractionRecord: {
+        selection_kind: '',
+        selection_match: 7,
+        compare_basis: null,
+      },
+    });
+
     const { rerender } = render(
       <DetailPanel
         state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'preview',
-          preview: { loading: false, error: 'Preview exploded', data: null },
-          setArtifactTab,
-        })}
-      />,
-    );
-
-    expect(screen.getByText('Preview exploded')).toBeTruthy();
-    expect(screen.getByText('Preview to inspect the canonical ffhn.status_report.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Last run' }));
-    expect(setArtifactTab).toHaveBeenCalledWith('run');
-
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'run',
-          lastRun: { loading: false, error: 'Run exploded', data: null },
-          document: {
-            loading: false,
-            error: null,
-            data: makeDocument({
-              lastRunSnapshot: { schema_name: 'ffhn.run_report', result: { outcome: 'changed' } },
-            }),
-          },
-        })}
-      />,
-    );
-    expect(screen.getByText('Run exploded')).toBeTruthy();
-    expect(screen.getByText('Run status report')).toBeTruthy();
-    expect(screen.getByText('Last run snapshot')).toBeTruthy();
-
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'state',
-          document: {
-            loading: false,
-            error: null,
-            data: makeDocument({
-              artifactIssues: ['State checksum mismatch'],
-            }),
-          },
-        })}
-      />,
-    );
-    expect(screen.getByText('State checksum mismatch')).toBeTruthy();
-    expect(screen.getByText('State document')).toBeTruthy();
-    expect(screen.getByText('Current extraction.json')).toBeTruthy();
-
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'batch',
-          lastBatch: {
-            loading: false,
-            error: 'Workspace exploded',
-            data: {
-              workspace: workspaceSnapshot,
-              batchReport: { schema_name: 'ffhn.batch_run_report', entries: [] },
-              skippedDirectories: [
-                { directoryName: 'archive-watch-root', reason: 'Mock skip reason' },
-              ],
-              notification: null,
-            },
-          },
-        })}
-      />,
-    );
-    expect(screen.getByText('Workspace exploded')).toBeTruthy();
-    expect(screen.getByText('Batch report')).toBeTruthy();
-    expect(screen.getByText('Skipped directories')).toBeTruthy();
-    expect(screen.getByText(/archive-watch-root/u)).toBeTruthy();
-  });
-
-  it('renders rich artifact and change branches without fallback content', () => {
-    const runningHandler = vi.fn();
-    const workspaceSnapshot = makeDashboardState().workspace.data ?? makeWorkspaceSnapshot();
-    const { rerender } = render(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'preview',
+          isDraftContext: true,
+          selectedTarget: null,
+          selectedDirectoryName: null,
+          detailTab: 'changes',
+          handleSave,
+          saving: false,
+          setDetailTab,
+          previewSnapshot,
+          previewArtifactIssues: ['Preview artifact drift'],
           preview: {
             loading: false,
             error: null,
             data: {
-              targetId: 'preview-rich',
-              displayName: 'Preview rich',
-              canonicalToml: 'target_id = "preview-rich"\n',
-              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'ready' } },
-              dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'unchanged' } },
-            },
-          },
-          document: {
-            loading: false,
-            error: null,
-            data: makeDocument({
-              artifactIssues: [],
-              artifactHistory: {
-                monitoringContractDigestSha256: 'digest',
-                currentSnapshot: makeSnapshotArtifact({
-                  compareText: 'Same line',
-                }),
-                snapshotHistory: [
-                  makeSnapshotArtifact({
-                    slot: 'history',
-                    capturedAt: '2026-05-14T11:30:00Z',
-                    compareDigestSha256: 'digest-previous',
-                    compareText: 'Same line',
-                  }),
-                ],
-              },
-            }),
-          },
-          lastRun: {
-            loading: false,
-            error: null,
-            data: {
-              workspace: workspaceSnapshot,
-              directoryName: 'demo_status_board',
-              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'ready' } },
-              runReport: { schema_name: 'ffhn.run_report', result: { outcome: 'unchanged' } },
-              notification: null,
-            },
-          },
-          lastBatch: {
-            loading: false,
-            error: null,
-            data: {
-              workspace: workspaceSnapshot,
-              batchReport: { schema_name: 'ffhn.batch_run_report', entries: [] },
-              skippedDirectories: [],
-              notification: null,
+              targetId: 'release_digest',
+              displayName: 'Release digest',
+              canonicalToml: 'target_id = "release_digest"\n',
+              draftSession: guidedSession(),
+              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
+              dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'initialized' } },
+              previewSnapshot,
+              previewArtifactIssues: ['Preview artifact drift'],
             },
           },
         })}
       />,
     );
 
-    expect(screen.queryByText('Preview to inspect the canonical ffhn.status_report.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review config' }));
+    expect(handleSave).toHaveBeenCalledTimes(1);
+    expect(setDetailTab).toHaveBeenCalledWith('config');
+    expect(screen.getByText('Preview artifact drift')).toBeTruthy();
 
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          selectedTarget: makeTarget({
-            directoryName: 'unsupported',
-            displayName: 'Unsupported',
-            targetId: null,
-            sourceLocator: null,
-            selectionLabel: null,
-            compareBasis: null,
-            lastRunOutcome: null,
-          }),
-          selectedDirectoryName: 'unsupported',
-          detailTab: 'changes',
-          runningTarget: true,
-          isBusy: true,
-          handleRunSelectedTarget: runningHandler,
-          document: {
-            loading: false,
-            error: null,
-            data: makeDocument({
-              artifactIssues: [],
-              artifactHistory: {
-                monitoringContractDigestSha256: 'digest',
-                currentSnapshot: makeSnapshotArtifact({
-                  compareText: 'Same line',
-                }),
-                snapshotHistory: [
-                  makeSnapshotArtifact({
-                    slot: 'history',
-                    capturedAt: '2026-05-14T11:30:00Z',
-                    compareDigestSha256: 'digest-previous',
-                    compareText: 'Same line',
-                  }),
-                ],
-              },
-            }),
-          },
-        })}
-      />,
-    );
+    const previewCompareButton = screen.getAllByRole('button', { name: 'Compare' })[0];
+    if (!previewCompareButton) {
+      throw new Error('Expected a preview compare button.');
+    }
+    fireEvent.click(previewCompareButton);
+    expect(screen.getByText('Current compare.txt')).toBeTruthy();
 
-    expect(screen.getByRole('button', { name: 'Running target…' })).toBeTruthy();
+    const previewExtractionButton = screen.getAllByRole('button', { name: 'Extraction' })[0];
+    if (!previewExtractionButton) {
+      throw new Error('Expected a preview extraction button.');
+    }
+    fireEvent.click(previewExtractionButton);
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
-    expect(screen.getByText('(no changed lines on the previous side)')).toBeTruthy();
-    expect(screen.getByText('(no changed lines on the current side)')).toBeTruthy();
-  });
-
-  it('covers non-error artifact data branches and unsupported saved outcomes', () => {
-    const workspaceSnapshot = makeDashboardState().workspace.data ?? makeWorkspaceSnapshot();
-    const { rerender } = render(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'run',
-          lastRun: {
-            loading: false,
-            error: null,
-            data: {
-              workspace: workspaceSnapshot,
-              directoryName: 'demo_status_board',
-              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'ready' } },
-              runReport: { schema_name: 'ffhn.run_report', result: { outcome: 'unchanged' } },
-              notification: null,
-            },
-          },
-        })}
-      />,
-    );
-
-    expect(screen.queryByText('Run exploded')).toBeNull();
-
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'state',
-          document: {
-            loading: false,
-            error: null,
-            data: makeDocument({
-              artifactIssues: [],
-              artifactHistory: null,
-            }),
-          },
-        })}
-      />,
-    );
-
-    expect(screen.queryByText('State checksum mismatch')).toBeNull();
-    expect(screen.getByText('No current baseline compare artifact yet.')).toBeTruthy();
-    expect(screen.getByText('No current extraction record yet.')).toBeTruthy();
-
-    rerender(
-      <DetailPanel
-        state={makeDashboardState({
-          detailTab: 'artifacts',
-          artifactTab: 'batch',
-          lastBatch: {
-            loading: false,
-            error: null,
-            data: {
-              workspace: workspaceSnapshot,
-              batchReport: { schema_name: 'ffhn.batch_run_report', entries: [] },
-              skippedDirectories: [],
-              notification: null,
-            },
-          },
-        })}
-      />,
-    );
-
-    expect(screen.queryByText('Workspace exploded')).toBeNull();
-    expect(screen.getByText('No directories were skipped.')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -551,5 +341,140 @@ describe('DetailPanel', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Run target' })).toBeNull();
+  });
+
+  it('renders saving, running, and null-metadata fallback states honestly', () => {
+    const { rerender } = render(
+      <DetailPanel
+        state={makeDashboardState({
+          isDraftContext: true,
+          selectedTarget: null,
+          selectedDirectoryName: null,
+          detailTab: 'changes',
+          saving: true,
+          preview: {
+            loading: false,
+            error: null,
+            data: {
+              targetId: 'release_digest',
+              displayName: 'Release digest',
+              canonicalToml: 'target_id = "release_digest"\n',
+              draftSession: guidedSession(),
+              statusReport: { schema_name: 'ffhn.status_report', status: { kind: 'pending' } },
+              dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'initialized' } },
+              previewSnapshot: makeSnapshotArtifact(),
+              previewArtifactIssues: [],
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeTruthy();
+
+    rerender(
+      <DetailPanel
+        state={makeDashboardState({
+          selectedTarget: makeTarget({
+            directoryName: 'running-first-baseline',
+            displayName: 'Running first baseline',
+            lastRunOutcome: null,
+            lastRunAt: null,
+            sourceLocator: null,
+            selectionLabel: null,
+            compareBasis: null,
+            targetId: null,
+          }),
+          selectedDirectoryName: 'running-first-baseline',
+          detailTab: 'changes',
+          runningTarget: true,
+          isBusy: true,
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Running target…' })).toBeTruthy();
+    expect(screen.getByText('Source')).toBeTruthy();
+    expect(screen.getByText('Selector')).toBeTruthy();
+    expect(screen.getByText('Compare basis')).toBeTruthy();
+    expect(screen.getByText('Target ID')).toBeTruthy();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('shows extraction metadata from saved history without falling back to placeholder copy', () => {
+    const historySnapshot = makeSnapshotArtifact({
+      extractionRecord: {
+        selection_kind: 'css_selector',
+        selection_match: 'single',
+        selected_candidate_index: 2,
+        candidate_count: 3,
+        compare_basis: 'text',
+      },
+    });
+
+    render(
+      <DetailPanel
+        state={makeDashboardState({
+          detailTab: 'changes',
+          selectedDirectoryName: 'release_digest',
+          selectedTarget: makeDashboardState().selectedTarget,
+          document: {
+            loading: false,
+            error: null,
+            data: makeDocument({
+              artifactHistory: {
+                monitoringContractDigestSha256: 'digest',
+                currentSnapshot: historySnapshot,
+                snapshotHistory: [makeSnapshotArtifact()],
+              },
+            }),
+          },
+        })}
+      />,
+    );
+
+    const historyExtractionButton = screen.getAllByRole('button', { name: 'Extraction' })[0];
+    if (!historyExtractionButton) {
+      throw new Error('Expected a history extraction button.');
+    }
+    fireEvent.click(historyExtractionButton);
+    expect(screen.getByText('css_selector')).toBeTruthy();
+    expect(screen.getByText('single')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('3')).toBeTruthy();
+    expect(screen.getAllByText('text').length).toBeGreaterThan(0);
+  });
+
+  it('falls back gracefully when extraction artifacts are malformed', () => {
+    render(
+      <DetailPanel
+        state={makeDashboardState({
+          detailTab: 'changes',
+          selectedDirectoryName: 'release_digest',
+          selectedTarget: makeDashboardState().selectedTarget,
+          document: {
+            loading: false,
+            error: null,
+            data: makeDocument({
+              artifactHistory: {
+                monitoringContractDigestSha256: 'digest',
+                currentSnapshot: makeSnapshotArtifact({
+                  extractionRecord: ['unexpected-array-payload'],
+                }),
+                snapshotHistory: [makeSnapshotArtifact()],
+              },
+            }),
+          },
+        })}
+      />,
+    );
+
+    const historyExtractionButton = screen.getAllByRole('button', { name: 'Extraction' })[0];
+    if (!historyExtractionButton) {
+      throw new Error('Expected a history extraction button.');
+    }
+    fireEvent.click(historyExtractionButton);
+    expect(screen.getByText('Current extraction.json')).toBeTruthy();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });

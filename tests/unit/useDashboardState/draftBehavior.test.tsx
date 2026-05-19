@@ -1,33 +1,36 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 
-import { useDashboardState } from '../../src/hooks/useDashboardState';
+import { useDashboardState } from '../../../src/hooks/useDashboardState';
 import type {
   DesktopBootstrap,
+  NotificationSettings,
   TargetDocumentRecord,
   TargetMutationResult,
   TargetPreview,
+  TargetRunResult,
   TargetTemplate,
   TargetTemplateKind,
   WorkspaceSnapshot,
-} from '../../src/types';
-import { makeDocument, makeTarget, makeWorkspaceSnapshot } from './fixtures';
+} from '../../../src/types';
+import { configureApi, makeBootstrap, targetToml, waitForLoadedState } from './harness';
+import { makeDocument, makeTarget, makeWorkspaceSnapshot } from '../fixtures';
 
 const api = vi.hoisted(() => ({
   bootstrap: vi.fn<() => Promise<DesktopBootstrap>>(),
-  clearNotificationFeed: vi.fn(),
-  createWorkspace: vi.fn(),
-  deleteTarget: vi.fn(),
+  clearNotificationFeed: vi.fn<() => Promise<WorkspaceSnapshot>>(),
+  createWorkspace: vi.fn<(workspacePath: string) => Promise<WorkspaceSnapshot>>(),
+  deleteTarget: vi.fn<(directoryName: string) => Promise<WorkspaceSnapshot>>(),
   getTargetTemplate: vi.fn<(kind: TargetTemplateKind) => Promise<TargetTemplate>>(),
-  openTargetPath: vi.fn(),
-  openWorkspacePath: vi.fn(),
-  openWorkspace: vi.fn(),
+  openTargetPath: vi.fn<(directoryName: string) => Promise<void>>(),
+  openWorkspacePath: vi.fn<() => Promise<void>>(),
+  openWorkspace: vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>(),
   previewTarget:
     vi.fn<
       (request: { draftSession?: unknown; rawToml?: string | null }) => Promise<TargetPreview>
     >(),
   readTarget: vi.fn<(directoryName: string) => Promise<TargetDocumentRecord>>(),
-  refreshWorkspace: vi.fn(),
-  runTarget: vi.fn(),
+  refreshWorkspace: vi.fn<() => Promise<WorkspaceSnapshot>>(),
+  runTarget: vi.fn<(directoryName: string) => Promise<TargetRunResult>>(),
   runWorkspace: vi.fn(),
   saveTarget:
     vi.fn<
@@ -37,14 +40,11 @@ const api = vi.hoisted(() => ({
         rawToml?: string | null;
       }) => Promise<TargetMutationResult>
     >(),
-  updateNotificationSettings: vi.fn(),
+  updateNotificationSettings:
+    vi.fn<(settings: NotificationSettings) => Promise<WorkspaceSnapshot>>(),
 }));
 
-vi.mock('../../src/lib/api', () => api);
-
-function targetToml(targetId: string, displayName: string, body: string) {
-  return `schema_name = "ffhn.target"\nschema_version = 4\ntarget_id = "${targetId}"\ndisplay_name = "${displayName}"\n${body}`;
-}
+vi.mock('../../../src/lib/api', () => api);
 
 function fileDocument(directoryName: string, displayName: string) {
   return makeDocument({
@@ -77,6 +77,10 @@ function repairDocument(directoryName: string, rawToml = '') {
 
 function template(kind: TargetTemplateKind) {
   const document = makeDocument();
+  if (!document.guidedSession) {
+    throw new Error('Expected fixture document to include a guided session.');
+  }
+
   const draft =
     kind === 'http'
       ? {
@@ -99,9 +103,10 @@ function template(kind: TargetTemplateKind) {
           fetchFollowRedirects: null,
           fetchAccept: null,
         };
+
   return {
     kind,
-    draftSession: { draft, contractSeed: {} },
+    draftSession: { draft, contractSeedToml: 'schema_name = "ffhn.target"\n' },
     canonicalToml: targetToml(
       draft.targetId,
       draft.displayName,
@@ -114,6 +119,10 @@ function template(kind: TargetTemplateKind) {
 
 function preview(targetId: string, displayName: string) {
   const document = makeDocument();
+  if (!document.guidedSession) {
+    throw new Error('Expected fixture document to include a guided session.');
+  }
+
   return {
     targetId,
     displayName,
@@ -129,10 +138,10 @@ function preview(targetId: string, displayName: string) {
         displayName,
         sourceLocator: '/tmp/dataarm/repair.html',
       },
-      contractSeed: {},
+      contractSeedToml: 'schema_name = "ffhn.target"\n',
     },
     statusReport: { schema_name: 'ffhn.status_report' },
-    dryRunReport: { schema_name: 'ffhn.run_report', result: { outcome: 'initialized' } },
+    dryRunReport: { schema_name: 'ffhn.run_report', result: { kind: 'initialized' } },
     previewSnapshot: null,
     previewArtifactIssues: [],
   };
@@ -155,33 +164,22 @@ function workspace(
   });
 }
 
-function bootstrapPayload(snapshot: WorkspaceSnapshot): DesktopBootstrap {
-  return {
-    app: {
-      appName: 'Dataarm',
-      appVersion: '0.1.0',
-      runtimeContract: 'embedded-ffhn-core',
-    },
-    workspace: snapshot,
-  };
-}
-
-async function waitForLoadedState(result: { current: ReturnType<typeof useDashboardState> }) {
-  await waitFor(() => {
-    expect(result.current.workspace.loading).toBe(false);
-    expect(result.current.document.loading).toBe(false);
+describe('useDashboardState draft behavior', () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
-}
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
-
-describe('useDashboardState guided coverage', () => {
   beforeEach(() => {
     const bootWorkspace = workspace();
-    api.bootstrap.mockResolvedValue(bootstrapPayload(bootWorkspace));
+    vi.clearAllMocks();
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
+    configureApi(api);
+    api.bootstrap.mockResolvedValue(makeBootstrap(bootWorkspace));
     api.readTarget.mockImplementation((directoryName) =>
       Promise.resolve(fileDocument(directoryName, directoryName)),
     );
@@ -191,22 +189,14 @@ describe('useDashboardState guided coverage', () => {
       directoryName: 'alpha',
       workspace: bootWorkspace,
     });
-    vi.stubGlobal(
-      'confirm',
-      vi.fn(() => true),
-    );
   });
 
-  it('normalizes draft kind, selection semantics, and canonicalizer mutations without compatibility shims', async () => {
+  it('preserves the right source defaults when a draft switches between file and http kinds', async () => {
     const { result } = renderHook(() => useDashboardState());
     await waitForLoadedState(result);
 
     await act(async () => {
       await result.current.handleStartNewTarget('file');
-    });
-    await waitFor(() => {
-      expect(result.current.editorMode).toBe('file');
-      expect(result.current.guidedDraft?.kind).toBe('file');
     });
 
     act(() => {
@@ -243,19 +233,24 @@ describe('useDashboardState guided coverage', () => {
 
     act(() => {
       result.current.setDraftField('sourceLocator', 'relative/path.html');
-    });
-    act(() => {
       result.current.setDraftKind('http');
     });
     expect(result.current.guidedDraft?.sourceLocator).toBe('https://example.com');
 
     act(() => {
       result.current.setDraftField('sourceLocator', 'relative/path.html');
-    });
-    act(() => {
       result.current.setDraftKind('file');
     });
     expect(result.current.guidedDraft?.sourceLocator).toBe('/absolute/path/to/page.html');
+  });
+
+  it('switches selection semantics cleanly between delimiter and selector modes', async () => {
+    const { result } = renderHook(() => useDashboardState());
+    await waitForLoadedState(result);
+
+    await act(async () => {
+      await result.current.handleStartNewTarget('file');
+    });
 
     act(() => {
       result.current.setSelectionKind('delimiter_pair');
@@ -292,6 +287,15 @@ describe('useDashboardState guided coverage', () => {
       selectionIncludeEnd: null,
       selectionIndex: null,
     });
+  });
+
+  it('adds, updates, and removes canonicalizers as draft-owned state', async () => {
+    const { result } = renderHook(() => useDashboardState());
+    await waitForLoadedState(result);
+
+    await act(async () => {
+      await result.current.handleStartNewTarget('file');
+    });
 
     act(() => {
       result.current.addCanonicalizer();
@@ -307,6 +311,7 @@ describe('useDashboardState guided coverage', () => {
     act(() => {
       result.current.removeCanonicalizer(0);
     });
+
     expect(result.current.guidedDraft?.compareCanonicalizers).toEqual([
       {
         kind: 'strip_regex',
@@ -316,11 +321,11 @@ describe('useDashboardState guided coverage', () => {
     ]);
   });
 
-  it('supports raw repair-mode reset, preview, and save flows before returning to guided authoring', async () => {
+  it('repairs a raw document, previews it, and returns to guided authoring once the contract becomes valid', async () => {
     const repairWorkspace = workspace([
       makeTarget({ directoryName: 'alpha', targetId: 'alpha', displayName: 'Alpha repair' }),
     ]);
-    api.bootstrap.mockResolvedValueOnce(bootstrapPayload(repairWorkspace));
+    api.bootstrap.mockResolvedValueOnce(makeBootstrap(repairWorkspace));
     api.readTarget.mockImplementationOnce(() => Promise.resolve(repairDocument('alpha')));
     api.readTarget.mockImplementation((directoryName) =>
       Promise.resolve(fileDocument(directoryName, directoryName)),
@@ -378,7 +383,7 @@ describe('useDashboardState guided coverage', () => {
 
     unmount();
 
-    api.bootstrap.mockResolvedValueOnce(bootstrapPayload(repairWorkspace));
+    api.bootstrap.mockResolvedValueOnce(makeBootstrap(repairWorkspace));
     api.readTarget.mockImplementationOnce(() =>
       Promise.resolve(repairDocument('alpha', repairToml)),
     );

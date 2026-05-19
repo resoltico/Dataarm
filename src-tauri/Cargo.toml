@@ -1,11 +1,16 @@
 [package]
 name = "dataarm"
-version = "0.2.0"
+version = "0.3.0"
 description = "Dataarm desktop workbench built with Tauri"
 license = "MIT"
 publish = false
 edition = "2024"
 rust-version = "1.95"
+default-run = "dataarm"
+
+[[bin]]
+name = "dataarm"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.6.1", features = [] }
@@ -28,9 +33,3 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
-
-
-
-
-
-
