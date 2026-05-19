@@ -1,8 +1,9 @@
 use super::state::NOTIFICATION_STATE_SCHEMA_VERSION;
 use super::*;
 use crate::models::{
-    TargetBaselinePhase, TargetCompareBasis, TargetSelectionKind, TargetSourceKind,
-    TargetStatusKind, TargetSummary, WorkspaceSource,
+    NotificationDelivery, TargetBaselinePhase, TargetCompareBasis, TargetSelectionKind,
+    TargetSourceKind, TargetStatusKind, TargetSummary, WatchAlertRule, WatchProfile, WatchSchedule,
+    WorkspaceSource,
 };
 
 fn settings(policy: NotificationPolicy, delivery: NotificationDelivery) -> NotificationSettings {
@@ -45,6 +46,17 @@ fn workspace(name: &str) -> WorkspaceSnapshot {
             baseline_phase: Some(TargetBaselinePhase::NeverSucceeded),
             last_run_outcome: None,
             last_run_at: None,
+            current_compare_preview: None,
+            watch_profile: WatchProfile {
+                schema_name: "dataarm.watch_profile".to_owned(),
+                schema_version: 1,
+                paused: false,
+                folder_name: None,
+                tags: Vec::new(),
+                schedule: WatchSchedule::default(),
+                alert_rule: WatchAlertRule::default(),
+                delivery: NotificationDelivery::InApp,
+            },
             error_message: None,
         }],
     }
@@ -165,5 +177,5 @@ fn promotes_workspace_skip_failures_to_attention_notifications() {
     .expect("candidate");
 
     assert_eq!(candidate.tone, NotificationTone::Error);
-    assert!(candidate.title.contains("skipped 1 directory"));
+    assert!(candidate.title.contains("skipped 1 watch"));
 }

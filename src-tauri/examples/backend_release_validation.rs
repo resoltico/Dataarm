@@ -702,6 +702,7 @@ fn persist_guided_target(
             previous_directory_name: previous_directory_name.map(ToOwned::to_owned),
             draft_session: Some(draft_session),
             raw_toml: None,
+            watch_profile: None,
         },
     )
 }

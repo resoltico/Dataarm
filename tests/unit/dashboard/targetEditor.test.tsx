@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { TargetEditor } from '../../../src/components/dashboard/TargetEditor';
-import { makeDashboardState, makeDocument, makeTarget } from '../fixtures';
+import { makeDashboardState, makeDocument, makeSnapshotArtifact, makeTarget } from '../fixtures';
 
 afterEach(() => {
   cleanup();
@@ -99,34 +99,56 @@ describe('TargetEditor', () => {
           guidedDraft: draft,
           repairMode: false,
           draftToml: 'target_id = "release_watch"\n',
+          preview: {
+            loading: false,
+            error: null,
+            data: {
+              targetId: 'release_watch',
+              displayName: 'Release watch',
+              canonicalToml: 'target_id = "release_watch"\n',
+              draftSession: {
+                draft,
+                contractSeedToml: 'schema_name = "ffhn.target"\n',
+              },
+              statusReport: { schema_name: 'ffhn.status_report' },
+              dryRunReport: {
+                schema_name: 'ffhn.run_report',
+                extraction: { candidate_count: 1 },
+                result: { kind: 'initialized' },
+              },
+              previewSnapshot: makeSnapshotArtifact(),
+              previewArtifactIssues: [],
+            },
+          },
           dirty: true,
           ...spies,
         })}
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Target ID'), {
+    fireEvent.change(screen.getByLabelText('Short name'), {
       target: { value: 'release_digest' },
     });
-    fireEvent.change(screen.getByLabelText('Display name'), {
+    fireEvent.change(screen.getByLabelText('Watch name'), {
       target: { value: 'Release digest' },
     });
-    fireEvent.change(screen.getByLabelText('Enabled'), {
+    fireEvent.change(screen.getByLabelText('Active'), {
       target: { value: 'false' },
     });
-    fireEvent.change(screen.getByLabelText('Target kind'), {
+    fireEvent.change(screen.getByLabelText('Watch type'), {
       target: { value: 'http' },
     });
     fireEvent.change(screen.getByLabelText('File path'), {
       target: { value: '/tmp/dataarm/release-digest.html' },
     });
-    fireEvent.change(screen.getByLabelText('Maximum bytes'), {
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced page settings' }));
+    fireEvent.change(screen.getByLabelText('Maximum page size'), {
       target: { value: '' },
     });
-    fireEvent.change(screen.getByLabelText('Maximum bytes'), {
+    fireEvent.change(screen.getByLabelText('Maximum page size'), {
       target: { value: '4096' },
     });
-    fireEvent.change(screen.getByLabelText('Selection kind'), {
+    fireEvent.change(screen.getByLabelText('Selection method'), {
       target: { value: 'css_selector' },
     });
     fireEvent.change(screen.getByLabelText('Selection match'), {
@@ -162,19 +184,19 @@ describe('TargetEditor', () => {
     fireEvent.change(selectionRegexFlagsInput, {
       target: { value: 'case_insensitive, multi_line' },
     });
-    fireEvent.change(screen.getByLabelText('Whitespace policy'), {
+    fireEvent.change(screen.getByLabelText('Whitespace'), {
       target: { value: 'preserve' },
     });
-    fireEvent.change(screen.getByLabelText('Compare basis'), {
+    fireEvent.change(screen.getByLabelText('Compare using'), {
       target: { value: 'outer_html' },
     });
     fireEvent.change(screen.getByLabelText('Rewrite discovered URLs'), {
       target: { value: 'true' },
     });
-    fireEvent.change(screen.getByLabelText('Snapshot history limit'), {
+    fireEvent.change(screen.getByLabelText('Saved history items'), {
       target: { value: '' },
     });
-    fireEvent.change(screen.getByLabelText('Snapshot history limit'), {
+    fireEvent.change(screen.getByLabelText('Saved history items'), {
       target: { value: '30' },
     });
     fireEvent.change(screen.getByLabelText('Canonicalizer 1 pattern'), {
@@ -188,8 +210,8 @@ describe('TargetEditor', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add canonicalizer' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Preview target' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save target' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check section' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save watch' }));
 
     expect(spies.setDraftField).toHaveBeenCalled();
     expect(spies.setDraftKind).toHaveBeenCalledWith('http');
@@ -249,25 +271,20 @@ describe('TargetEditor', () => {
         'No canonicalizers are active. Add one if the compare payload needs normalization.',
       ),
     ).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Source URL'), {
+    fireEvent.change(screen.getByLabelText('Page URL'), {
       target: { value: 'https://example.com/releases/latest' },
     });
-    fireEvent.change(screen.getByLabelText('HTTP method'), {
-      target: { value: 'GET' },
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced page settings' }));
     fireEvent.change(screen.getByLabelText('Timeout (ms)'), {
       target: { value: '' },
     });
     fireEvent.change(screen.getByLabelText('Timeout (ms)'), {
       target: { value: '25000' },
     });
-    fireEvent.change(screen.getByLabelText('Accept header'), {
-      target: { value: 'text/plain' },
-    });
-    fireEvent.change(screen.getByLabelText('User-Agent'), {
+    fireEvent.change(screen.getByLabelText('Browser identity'), {
       target: { value: 'Dataarm QA' },
     });
-    fireEvent.change(screen.getByLabelText('Redirect policy'), {
+    fireEvent.change(screen.getByLabelText('Redirects'), {
       target: { value: 'follow' },
     });
     fireEvent.change(screen.getByLabelText('CSS selector'), {
@@ -329,7 +346,7 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Whitespace policy')).toBeNull();
+    expect(screen.queryByLabelText('Whitespace')).toBeNull();
   });
 
   it('supports repair mode and saved-target actions as separate workflows', () => {
@@ -352,8 +369,8 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.getByText('Guided editing is unavailable for this target.')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Target TOML editor'), {
+    expect(screen.getByText('Guided editing is unavailable for this watch.')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Watch TOML editor'), {
       target: { value: 'target_id = "repair_watch"\n[target]\nkind = "file"\n' },
     });
     expect(spies.setDraftToml).toHaveBeenCalled();
@@ -375,7 +392,7 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Target TOML editor').getAttribute('placeholder')).toBeNull();
+    expect(screen.getByLabelText('Watch TOML editor').getAttribute('placeholder')).toBeNull();
 
     rerender(
       <TargetEditor
@@ -400,10 +417,10 @@ describe('TargetEditor', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run target' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Open folder' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete target' }));
-    expect(screen.getByRole('button', { name: 'Run target' }).getAttribute('title')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete watch' }));
+    expect(screen.getByRole('button', { name: 'Check now' }).getAttribute('title')).toBeNull();
     expect(spies.handleRunSelectedTarget).toHaveBeenCalledTimes(1);
     expect(spies.handleOpenSelectedTargetPath).toHaveBeenCalledTimes(1);
     expect(spies.handleDeleteSelectedTarget).toHaveBeenCalledTimes(1);
@@ -425,7 +442,7 @@ describe('TargetEditor', () => {
         })}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Reset draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset changes' }));
     expect(spies.handleResetDraft).toHaveBeenCalledTimes(1);
   });
 
@@ -449,7 +466,7 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Previewing…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Checking section…' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Saving…' })).toBeTruthy();
 
     rerender(
@@ -468,8 +485,8 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Run target' }).getAttribute('title')).toBe(
-      'Wait for the selected target to finish loading.',
+    expect(screen.getByRole('button', { name: 'Check now' }).getAttribute('title')).toBe(
+      'Wait for the selected watch to finish loading.',
     );
 
     const delimiterDraft = {
@@ -512,17 +529,98 @@ describe('TargetEditor', () => {
       />,
     );
 
-    expect(screen.getByLabelText<HTMLSelectElement>('HTTP method').value).toBe('GET');
-    expect(screen.getByLabelText<HTMLSelectElement>('HTTP method').value).toBe('GET');
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced page settings' }));
     expect(screen.getByLabelText<HTMLInputElement>('Timeout (ms)').value).toBe('15000');
-    expect(screen.getByLabelText<HTMLInputElement>('Accept header').value).toBe('');
-    expect(screen.getByLabelText<HTMLInputElement>('User-Agent').value).toBe('');
-    expect(screen.getByLabelText<HTMLSelectElement>('Redirect policy').value).toBe('follow');
+    expect(screen.getByLabelText<HTMLInputElement>('Browser identity').value).toBe('');
+    expect(screen.getByLabelText<HTMLSelectElement>('Redirects').value).toBe('follow');
     expect(screen.getByLabelText<HTMLInputElement>('Start delimiter').value).toBe('');
     expect(screen.getByLabelText<HTMLInputElement>('End delimiter').value).toBe('');
     expect(screen.getByLabelText<HTMLSelectElement>('Delimiter mode').value).toBe('literal');
     expect(screen.getByLabelText<HTMLSelectElement>('Include start').value).toBe('true');
     expect(screen.getByLabelText<HTMLSelectElement>('Include end').value).toBe('true');
-    expect(screen.getByLabelText<HTMLSelectElement>('Whitespace policy').value).toBe('normalize');
+    expect(screen.getByLabelText<HTMLSelectElement>('Whitespace').value).toBe('normalize');
+  });
+
+  it('disables saving until a website watch validates one section and shows metadata fallbacks', () => {
+    const { baseDocument } = makeGuidedFileDraft();
+
+    const validatingDraft = {
+      ...baseDocument.guidedSession.draft,
+      kind: 'http' as const,
+      selectionKind: 'css_selector' as const,
+      selectionSelector: '.release-card',
+      sourceLocator: 'https://example.com/releases',
+      fetchMethod: 'GET' as const,
+      fetchTimeoutMs: 15000,
+      fetchUserAgent: 'dataarm/template',
+      fetchFollowRedirects: true,
+      fetchAccept: 'text/html',
+    };
+
+    const { rerender } = render(
+      <TargetEditor
+        state={makeDashboardState({
+          selectedTarget: null,
+          selectedDirectoryName: null,
+          isDraftContext: true,
+          editorMode: 'http',
+          draftSession: {
+            draft: validatingDraft,
+            contractSeedToml: 'schema_name = "ffhn.target"\n',
+          },
+          guidedDraft: validatingDraft,
+          repairMode: false,
+          preview: {
+            loading: false,
+            error: null,
+            data: {
+              targetId: 'release_watch',
+              displayName: 'Release watch',
+              canonicalToml: 'target_id = "release_watch"\n',
+              draftSession: {
+                draft: validatingDraft,
+                contractSeedToml: 'schema_name = "ffhn.target"\n',
+              },
+              statusReport: { schema_name: 'ffhn.status_report' },
+              dryRunReport: {
+                schema_name: 'ffhn.run_report',
+                extraction: { candidateCount: 2 },
+              },
+              previewSnapshot: null,
+              previewArtifactIssues: [],
+            },
+          },
+        })}
+      />,
+    );
+
+    const saveButton = screen.getByRole('button', { name: 'Save watch' });
+    expect(saveButton.hasAttribute('disabled')).toBe(true);
+    expect(saveButton.getAttribute('title')).toBe(
+      'Refine the section until exactly one match remains before saving this watch.',
+    );
+
+    rerender(
+      <TargetEditor
+        state={makeDashboardState({
+          selectedTarget: makeTarget({
+            directoryName: 'release_watch',
+            targetId: 'release_watch',
+            displayName: 'Release watch',
+            sourceLocator: null,
+            selectionLabel: null,
+            compareBasis: null,
+          }),
+          watchProfile: null,
+          draftSession: baseDocument.guidedSession,
+          guidedDraft: baseDocument.guidedSession.draft,
+          repairMode: false,
+        })}
+      />,
+    );
+
+    expect(screen.getByText('Page: —')).toBeTruthy();
+    expect(screen.getByText('Section: —')).toBeTruthy();
+    expect(screen.getByText('Compare using: —')).toBeTruthy();
   });
 });

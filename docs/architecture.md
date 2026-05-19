@@ -25,7 +25,7 @@ The desktop does not own:
 - run orchestration semantics
 - HTMLCut-specific engine behavior
 
-The embedded runtime line is now the released `ffhn-core v8.0.0` contract with no downstream selector-stack override. [vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the canonical machine-readable record of that intake policy.
+The embedded runtime line is now the released `ffhn-core v8.1.0` contract with no downstream selector-stack override. [vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the canonical machine-readable record of that intake policy.
 
 ## Source Layout
 

@@ -6,9 +6,11 @@ import {
   BROWSER_WORKBENCH_FIXTURE_ROOT,
   BROWSER_WORKBENCH_ROOT,
   BROWSER_WORKBENCH_VERSION,
-  browserWorkbenchDemoRoot,
+  browserWorkbenchExamplesRoot,
+  browserWorkbenchLibraryRoot,
   browserWorkbenchSessionRoot,
-  browserWorkbenchTemplateDemoRoot,
+  browserWorkbenchTemplateExamplesRoot,
+  browserWorkbenchTemplateLibraryRoot,
   browserWorkbenchTemplateSessionRoot,
 } from './constants.mjs';
 import { repoRoot } from '../lib/artifact-roots.mjs';
@@ -128,28 +130,36 @@ export async function prepareBrowserWorkbenchTemplate(bridge) {
   ensureSharedFixtures();
 
   const sessionRoot = browserWorkbenchTemplateSessionRoot();
-  const demoRoot = browserWorkbenchTemplateDemoRoot();
-  if (fs.existsSync(demoRoot)) {
+  const libraryRoot = browserWorkbenchTemplateLibraryRoot();
+  const examplesRoot = browserWorkbenchTemplateExamplesRoot();
+  if (fs.existsSync(libraryRoot)) {
     return {
-      demoRoot,
+      examplesRoot,
       fixtureReleaseNotesPath: BROWSER_WORKBENCH_FIXTURE_RELEASE_NOTES,
+      libraryRoot,
     };
   }
 
   resetDirectory(sessionRoot);
-  writeDemoSources(demoRoot, demoStatusBoardHtml, demoReleaseNotesBaselineHtml);
-  writeTarget(demoRoot, 'status_board', replaceDemoToken(demoStatusBoardTargetTemplate, demoRoot));
+  fs.mkdirSync(libraryRoot, { recursive: true });
+  writeDemoSources(examplesRoot, demoStatusBoardHtml, demoReleaseNotesBaselineHtml);
   writeTarget(
-    demoRoot,
+    examplesRoot,
+    'status_board',
+    replaceDemoToken(demoStatusBoardTargetTemplate, examplesRoot),
+  );
+  writeTarget(
+    examplesRoot,
     'release_notes',
-    replaceDemoToken(demoReleaseNotesTargetTemplate, demoRoot),
+    replaceDemoToken(demoReleaseNotesTargetTemplate, examplesRoot),
   );
 
-  await primeDemoRuntimeArtifacts(bridge, demoRoot);
+  await primeDemoRuntimeArtifacts(bridge, examplesRoot);
 
   return {
-    demoRoot,
+    examplesRoot,
     fixtureReleaseNotesPath: BROWSER_WORKBENCH_FIXTURE_RELEASE_NOTES,
+    libraryRoot,
   };
 }
 
@@ -157,14 +167,16 @@ export async function ensureBrowserWorkbenchFixtures(bridge, sessionId) {
   await prepareBrowserWorkbenchTemplate(bridge);
 
   const sessionRoot = browserWorkbenchSessionRoot(sessionId);
-  const demoRoot = browserWorkbenchDemoRoot(sessionId);
+  const libraryRoot = browserWorkbenchLibraryRoot(sessionId);
+  const examplesRoot = browserWorkbenchExamplesRoot(sessionId);
   const templateSessionRoot = browserWorkbenchTemplateSessionRoot();
 
   resetDirectory(sessionRoot);
   fs.cpSync(templateSessionRoot, sessionRoot, { recursive: true });
 
   return {
-    demoRoot,
+    examplesRoot,
     fixtureReleaseNotesPath: BROWSER_WORKBENCH_FIXTURE_RELEASE_NOTES,
+    libraryRoot,
   };
 }

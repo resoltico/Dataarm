@@ -6,6 +6,8 @@ import type {
   BatchRunResult,
   DesktopBootstrap,
   NotificationSettings,
+  SourceInspectionRequest,
+  SourceInspectionResult,
   TargetDraftSession,
   TargetDocumentRecord,
   TargetMutationResult,
@@ -31,6 +33,9 @@ export type DashboardApiMock = {
   getTargetTemplate: ReturnType<
     typeof vi.fn<(kind: TargetTemplateKind) => Promise<TargetTemplate>>
   >;
+  inspectSource: ReturnType<
+    typeof vi.fn<(request: SourceInspectionRequest) => Promise<SourceInspectionResult>>
+  >;
   openTargetPath: ReturnType<typeof vi.fn<(directoryName: string) => Promise<void>>>;
   openWorkspacePath: ReturnType<typeof vi.fn<() => Promise<void>>>;
   openWorkspace: ReturnType<typeof vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>>;
@@ -47,6 +52,7 @@ export type DashboardApiMock = {
         previousDirectoryName?: string | null;
         draftSession?: TargetDraftSession | null;
         rawToml?: string | null;
+        watchProfile?: unknown;
       }) => Promise<TargetMutationResult>
     >
   >;
@@ -62,6 +68,7 @@ export function createApiMock(): DashboardApiMock {
     createWorkspace: vi.fn<(workspacePath: string) => Promise<WorkspaceSnapshot>>(),
     deleteTarget: vi.fn<(directoryName: string) => Promise<WorkspaceSnapshot>>(),
     getTargetTemplate: vi.fn<(kind: TargetTemplateKind) => Promise<TargetTemplate>>(),
+    inspectSource: vi.fn<(request: SourceInspectionRequest) => Promise<SourceInspectionResult>>(),
     openTargetPath: vi.fn<(directoryName: string) => Promise<void>>(),
     openWorkspacePath: vi.fn<() => Promise<void>>(),
     openWorkspace: vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>(),
@@ -76,6 +83,7 @@ export function createApiMock(): DashboardApiMock {
           previousDirectoryName?: string | null;
           draftSession?: TargetDraftSession | null;
           rawToml?: string | null;
+          watchProfile?: unknown;
         }) => Promise<TargetMutationResult>
       >(),
     updateNotificationSettings:
@@ -295,6 +303,11 @@ export function configureApi(api: DashboardApiMock, workspace = makeWorkspace())
       makeDraftSession('http', 'website_watch', 'Website watch', 'https://example.com'),
     ),
   );
+  api.inspectSource.mockResolvedValue({
+    finalUrl: 'https://example.com/',
+    contentType: 'text/html',
+    html: '<!doctype html><html><body><main><article class="release">Preview release</article></main></body></html>',
+  });
   api.saveTarget.mockResolvedValue({
     directoryName: 'saved-target',
     workspace: makeWorkspace([

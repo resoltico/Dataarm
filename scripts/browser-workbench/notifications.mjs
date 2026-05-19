@@ -94,8 +94,8 @@ export function recordTargetRunNotification(state, workspaceName, targetDisplayN
     return appendNotification(state, {
       tone: 'success',
       scopeKind: 'target_run',
-      title: `Baseline captured for ${targetDisplayName}.`,
-      body: `The first live run in ${workspaceName} established a baseline for ${targetDisplayName}.`,
+      title: `First check saved for ${targetDisplayName}.`,
+      body: `The first live run in ${workspaceName} saved the starting reference for ${targetDisplayName}.`,
       workspaceName,
       targetDisplayName,
     });
@@ -106,7 +106,7 @@ export function recordTargetRunNotification(state, workspaceName, targetDisplayN
       tone: 'success',
       scopeKind: 'target_run',
       title: `No change in ${targetDisplayName}.`,
-      body: `The live run in ${workspaceName} matched the current baseline for ${targetDisplayName}.`,
+      body: `The live run in ${workspaceName} matched the saved reference for ${targetDisplayName}.`,
       workspaceName,
       targetDisplayName,
     });
@@ -143,12 +143,12 @@ export function recordWorkspaceRunNotification(
       scopeKind: 'workspace_run',
       title:
         skippedDirectories.length === 1
-          ? 'Workspace run skipped 1 directory.'
-          : `Workspace run skipped ${String(skippedDirectories.length)} directories.`,
+          ? 'All-watch check skipped 1 watch.'
+          : `All-watch check skipped ${String(skippedDirectories.length)} watches.`,
       body: `${workspaceName} skipped ${pluralize(
         skippedDirectories.length,
-        'directory',
-      )} because durable target ids were invalid or unreadable.`,
+        'watch',
+      )} because some saved watch files were invalid or unreadable.`,
       workspaceName,
       targetDisplayName: null,
     });
@@ -178,8 +178,8 @@ export function recordWorkspaceRunNotification(
 
   if (counts.changed + counts.initialized > 0) {
     const details = [
-      counts.changed > 0 ? pluralize(counts.changed, 'changed target') : null,
-      counts.initialized > 0 ? pluralize(counts.initialized, 'new baseline') : null,
+      counts.changed > 0 ? pluralize(counts.changed, 'changed watch') : null,
+      counts.initialized > 0 ? pluralize(counts.initialized, 'new saved reference') : null,
     ]
       .filter(Boolean)
       .join(' and ');
@@ -187,8 +187,8 @@ export function recordWorkspaceRunNotification(
     return appendNotification(state, {
       tone: 'warning',
       scopeKind: 'workspace_run',
-      title: `Workspace run found ${details}.`,
-      body: `${workspaceName} finished a live batch run with ${details}.`,
+      title: `All-watch check found ${details}.`,
+      body: `${workspaceName} finished checking all watches with ${details}.`,
       workspaceName,
       targetDisplayName: null,
     });
@@ -203,14 +203,14 @@ export function recordWorkspaceRunNotification(
     scopeKind: 'workspace_run',
     title:
       counts.unchanged > 0 && counts.other === 0
-        ? 'Workspace run completed with no changes.'
-        : 'Workspace run completed.',
+        ? 'All-watch check completed with no changes.'
+        : 'All-watch check completed.',
     body:
       counts.unchanged > 0 && counts.other === 0
-        ? `${workspaceName} checked ${pluralize(counts.unchanged, 'target')} and found no changes.`
-        : `${workspaceName} completed the live batch run across ${pluralize(
+        ? `${workspaceName} checked ${pluralize(counts.unchanged, 'watch')} and found no changes.`
+        : `${workspaceName} completed the full check across ${pluralize(
             counts.changed + counts.initialized + counts.unchanged + counts.other,
-            'target',
+            'watch',
           )}.`,
     workspaceName,
     targetDisplayName: null,

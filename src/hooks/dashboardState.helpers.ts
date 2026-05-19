@@ -6,6 +6,7 @@ import type {
   TargetDraftCanonicalizer,
   TargetDraftSession,
   TargetTemplateKind,
+  WatchProfile,
   WorkspaceSnapshot,
 } from '../types';
 import { isChangedTargetStatus, isTargetErrorStatus } from '../lib/workbenchContract';
@@ -41,13 +42,43 @@ export function cloneDraftSession(session: TargetDraftSession | null) {
   return session == null ? null : structuredClone(session);
 }
 
-export function editorSignature(session: TargetDraftSession | null, toml: string) {
-  return session == null
-    ? toml
-    : JSON.stringify({
-        draft: session.draft,
-        contractSeedToml: session.contractSeedToml,
-      });
+export function cloneWatchProfile(profile: WatchProfile | null) {
+  return profile == null ? null : structuredClone(profile);
+}
+
+export function defaultWatchProfile(): WatchProfile {
+  return {
+    schemaName: 'dataarm.watch_profile',
+    schemaVersion: 1,
+    paused: false,
+    folderName: null,
+    tags: [],
+    schedule: {
+      preset: 'every_15_minutes',
+      customExpression: null,
+    },
+    alertRule: {
+      kind: 'any_change',
+      textOperand: null,
+      numericOperand: null,
+      regexPattern: null,
+      ignoreTextFragments: [],
+    },
+    delivery: 'in_app',
+  };
+}
+
+export function editorSignature(
+  session: TargetDraftSession | null,
+  toml: string,
+  watchProfile: WatchProfile | null,
+) {
+  return JSON.stringify({
+    toml: session == null ? toml : null,
+    draft: session?.draft ?? null,
+    contractSeedToml: session?.contractSeedToml ?? null,
+    watchProfile,
+  });
 }
 
 export function normalizeDraftForKind(draft: TargetDraft, kind: TargetTemplateKind): TargetDraft {

@@ -8,21 +8,26 @@ export function SelectionSection({
   draft: GuidedDraft;
   state: TargetEditorState;
 }) {
+  const extraction = (
+    state.preview.data?.dryRunReport as { extraction?: { candidateCount?: number } } | undefined
+  )?.extraction;
+  const candidateCount = extraction?.candidateCount ?? null;
+
   return (
     <DraftSection
-      title="Selection"
-      subtitle="The guided draft keeps the extraction strategy explicit instead of hiding it in raw TOML."
+      title="Section"
+      subtitle="Tell Dataarm which part of the page matters so it can compare that section over time."
     >
-      <Field label="Selection kind">
+      <Field label="Selection method">
         <select
-          aria-label="Selection kind"
+          aria-label="Selection method"
           value={draft.selectionKind}
           onChange={(event) => {
             state.setSelectionKind(event.target.value as typeof draft.selectionKind);
           }}
         >
           <option value="css_selector">CSS selector</option>
-          <option value="delimiter_pair">Delimiter pair</option>
+          <option value="delimiter_pair">Text markers</option>
         </select>
       </Field>
       <Field label="Match mode">
@@ -33,13 +38,13 @@ export function SelectionSection({
             state.setSelectionMatch(event.target.value as typeof draft.selectionMatch);
           }}
         >
-          <option value="single">single</option>
-          <option value="first">first</option>
-          <option value="nth">nth</option>
+          <option value="single">Single match</option>
+          <option value="first">First match</option>
+          <option value="nth">Nth match</option>
         </select>
       </Field>
       {draft.selectionMatch === 'nth' ? (
-        <Field label="Nth index (1-based)">
+        <Field label="Nth match (1-based)">
           <input
             aria-label="Nth index (1-based)"
             min={1}
@@ -52,7 +57,7 @@ export function SelectionSection({
         </Field>
       ) : null}
       {draft.selectionKind === 'css_selector' ? (
-        <Field label="CSS selector" span="wide">
+        <Field label="Section selector" span="wide">
           <input
             aria-label="CSS selector"
             value={draft.selectionSelector ?? ''}
@@ -63,7 +68,7 @@ export function SelectionSection({
         </Field>
       ) : (
         <>
-          <Field label="Start delimiter" span="wide">
+          <Field label="Start marker" span="wide">
             <input
               aria-label="Start delimiter"
               value={draft.selectionStart ?? ''}
@@ -72,7 +77,7 @@ export function SelectionSection({
               }}
             />
           </Field>
-          <Field label="End delimiter" span="wide">
+          <Field label="End marker" span="wide">
             <input
               aria-label="End delimiter"
               value={draft.selectionEnd ?? ''}
@@ -81,7 +86,7 @@ export function SelectionSection({
               }}
             />
           </Field>
-          <Field label="Delimiter mode">
+          <Field label="Marker mode">
             <select
               aria-label="Delimiter mode"
               value={draft.selectionDelimiterMode ?? 'literal'}
@@ -92,11 +97,11 @@ export function SelectionSection({
                 );
               }}
             >
-              <option value="literal">literal</option>
-              <option value="regex">regex</option>
+              <option value="literal">Literal text</option>
+              <option value="regex">Regular expression</option>
             </select>
           </Field>
-          <Field label="Include start">
+          <Field label="Keep start marker">
             <select
               aria-label="Include start"
               value={draft.selectionIncludeStart ? 'true' : 'false'}
@@ -104,11 +109,11 @@ export function SelectionSection({
                 state.setDraftField('selectionIncludeStart', event.target.value === 'true');
               }}
             >
-              <option value="false">Exclude</option>
-              <option value="true">Include</option>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
             </select>
           </Field>
-          <Field label="Include end">
+          <Field label="Keep end marker">
             <select
               aria-label="Include end"
               value={draft.selectionIncludeEnd ? 'true' : 'false'}
@@ -116,8 +121,8 @@ export function SelectionSection({
                 state.setDraftField('selectionIncludeEnd', event.target.value === 'true');
               }}
             >
-              <option value="false">Exclude</option>
-              <option value="true">Include</option>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
             </select>
           </Field>
           <Field label="Regex flags" span="wide">
@@ -138,6 +143,16 @@ export function SelectionSection({
           </Field>
         </>
       )}
+      <div className="draft-summary-card">
+        <strong>Section validation</strong>
+        <span>
+          {candidateCount == null
+            ? 'Use “Check section” after choosing a section so Dataarm can confirm the match.'
+            : candidateCount === 1
+              ? 'Matched 1 section. This watch is ready to save.'
+              : `Matched ${String(candidateCount)} sections. Refine the section before saving unless you intentionally want multiple matches.`}
+        </span>
+      </div>
     </DraftSection>
   );
 }

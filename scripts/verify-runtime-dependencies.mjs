@@ -11,6 +11,7 @@ const vendorFile = resolve('vendor/runtime-dependencies.json');
 const runtimePolicy = JSON.parse(await readFile(vendorFile, 'utf8'));
 const manifest = await readFile(resolve('src-tauri/Cargo.toml'), 'utf8');
 const packageJson = JSON.parse(await readFile(resolve('package.json'), 'utf8'));
+const runtimeLine = `ffhn-core ${runtimePolicy.ffhnCore?.version ?? '(unknown version)'}`;
 
 if (runtimePolicy.current !== 'released-ffhn-runtime-line') {
   fail(`Unexpected runtime dependency policy state: ${runtimePolicy.current}`);
@@ -51,20 +52,20 @@ if (!runMiriScript.includes('-Zmiri-disable-isolation')) {
 const patchPolicy = runtimePolicy.patchPolicy;
 if (patchPolicy?.active) {
   fail(
-    'vendor/runtime-dependencies.json must not mark a local patch active on the released ffhn-core 8.0.0 line',
+    `vendor/runtime-dependencies.json must not mark a local patch active on the released ${runtimeLine} line`,
   );
 }
 
 if (manifest.includes('[patch.crates-io]')) {
   fail(
-    'src-tauri/Cargo.toml must not carry a local [patch.crates-io] override on the released ffhn-core 8.0.0 line',
+    `src-tauri/Cargo.toml must not carry a local [patch.crates-io] override on the released ${runtimeLine} line`,
   );
 }
 
 for (const retiredPath of ['patches/README.md', 'patches/rust/servo_arc']) {
   try {
     await stat(resolve(retiredPath));
-    fail(`${retiredPath} must be removed once the released ffhn-core 8.0.0 line is embedded`);
+    fail(`${retiredPath} must be removed once the released ${runtimeLine} line is embedded`);
   } catch (error) {
     if (error?.code !== 'ENOENT') {
       throw error;

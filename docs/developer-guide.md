@@ -17,11 +17,13 @@ This is the maintained guide for developing, testing, and packaging Dataarm.
 ```bash
 brew install mise
 mise install
-npm install
+mise exec -- npm install
 npx playwright install --with-deps
 ```
 
 That is enough to run the browser workbench, the native app, the tests, and the packaging checks in this repository.
+
+All `npm` commands in this guide assume you are already inside the pinned toolchain from `mise`. In a plain host shell, prefix them with `mise exec --`.
 
 You do not need sibling `ffhn` or `HTMLCut` clones to work on Dataarm. Those repositories only matter when you are changing upstream engine behavior.
 
@@ -131,7 +133,7 @@ This runs the full maintained suite and then builds plus verifies the ad-hoc sig
 npm run quality:miri
 ```
 
-This uses the pinned nightly toolchain and the maintained wrapper script because the Tauri startup path needs the Miri isolation override. The lane is intentionally scoped to one desktop-owned save/read seam rather than to the entire upstream HTML extraction engine. `ffhn-core` and `htmlcut-core` own the deeper engine proof in their own repositories; Dataarm proves that its guided-session persistence and workspace read boundary remain sound under Miri, while open upstream HTML extraction defects are tracked in [.codex/htmlcut-and-ffhn-defects.txt](../.codex/htmlcut-and-ffhn-defects.txt).
+This uses the pinned nightly toolchain and the maintained wrapper script because the Tauri startup path needs the Miri isolation override. The lane is intentionally scoped to one desktop-owned save/read seam rather than to the entire upstream HTML extraction engine. `ffhn-core` and `htmlcut-core` own the deeper engine proof in their own repositories; Dataarm proves that its guided-session persistence and workspace read boundary remain sound under Miri, and any open upstream HTML extraction defect belongs in the `.codex/` upstream-defect log.
 
 ## Packaging
 
@@ -203,4 +205,4 @@ Clone `ffhn` or `HTMLCut` only when your task changes:
 
 Dataarm depends on the released `ffhn-core` crate from the upstream repository tag declared in [src-tauri/Cargo.toml](../src-tauri/Cargo.toml).
 
-[vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the canonical machine-readable policy for the embedded runtime line, the desktop-owned Miri seam, and the no-downstream-patch posture that now applies on `ffhn-core v8.0.0`.
+[vendor/runtime-dependencies.json](../vendor/runtime-dependencies.json) is the canonical machine-readable policy for the embedded runtime line, the desktop-owned Miri seam, and the no-downstream-patch posture that now applies on `ffhn-core v8.1.0`.

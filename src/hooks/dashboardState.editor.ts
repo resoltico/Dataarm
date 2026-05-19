@@ -18,20 +18,24 @@ import type {
   TargetRunResult,
   TargetSummary,
   TargetTemplateKind,
+  WatchProfile,
   WorkspaceSnapshot,
   WorkspaceSummary,
 } from '../types';
 import {
   createFeedback,
+  defaultWatchProfile,
   errorMessage,
   initialState,
   notificationFeedback,
   readRunOutcome,
 } from './dashboardState.helpers';
+import { assessWatchSetup } from '../lib/watchSetupAssessment';
 import type { WorkspaceHydrationMode } from './dashboardState.workspace';
 
 type Tone = ActionFeedback['tone'];
 export type TargetDocumentLoadMode = 'replace_view' | 'refresh_view';
+export type TargetTemplateFeedbackMode = 'announce' | 'silent';
 
 type EditorContext = {
   beginWorkspaceUpdate: () => number;
@@ -42,12 +46,17 @@ type EditorContext = {
   setDocument: (state: AsyncState<TargetDocumentRecord>) => void;
   setDraftSession: (session: TargetDraftSession | null) => void;
   setDraftToml: (toml: string) => void;
+  setWatchProfile: (profile: WatchProfile | null) => void;
   setDirty: (dirty: boolean) => void;
   setEditorMode: (mode: 'existing' | TargetTemplateKind) => void;
   setDetailTab: (tab: 'changes' | 'config' | 'artifacts') => void;
   setArtifactTab: (tab: 'preview' | 'run' | 'state' | 'batch') => void;
   clearInspector: () => void;
-  primeEditorBaseline: (session: TargetDraftSession | null, toml: string) => void;
+  primeEditorBaseline: (
+    session: TargetDraftSession | null,
+    toml: string,
+    watchProfile: WatchProfile | null,
+  ) => void;
   applyEditorState: (
     session: TargetDraftSession | null,
     toml: string,
@@ -68,6 +77,7 @@ type EditorContext = {
   ) => Promise<void>;
   draftSession: TargetDraftSession | null;
   draftToml: string;
+  watchProfile: WatchProfile | null;
   workspaceSummary: WorkspaceSummary | null;
   selectedDirectoryName: string | null;
   selectedTarget: TargetSummary | null;
@@ -85,6 +95,7 @@ export async function loadTargetDocumentIntoState(
   context.setDocument(initialState());
   context.setDraftSession(null);
   context.setDraftToml('');
+  context.setWatchProfile(null);
   context.setDirty(false);
   context.setEditorMode('existing');
   if (replacingView) {
@@ -99,7 +110,11 @@ export async function loadTargetDocumentIntoState(
       return;
     }
     context.setDocument({ loading: false, error: null, data: record });
-    context.primeEditorBaseline(record.guidedSession, record.canonicalToml ?? record.rawToml);
+    context.primeEditorBaseline(
+      record.guidedSession,
+      record.canonicalToml ?? record.rawToml,
+      record.watchProfile,
+    );
     context.setEditorMode('existing');
   } catch (error) {
     if (!context.isCurrentDocumentLoad(loadId)) {
@@ -114,6 +129,7 @@ export async function loadTargetDocumentIntoState(
 export async function loadNewTargetTemplateIntoState(
   context: EditorContext & { setSelectedDirectoryName: (directoryName: string | null) => void },
   kind: TargetTemplateKind,
+  feedbackMode: TargetTemplateFeedbackMode = 'announce',
 ) {
   const loadId = context.beginDocumentLoad();
   context.setSelectedDirectoryName(null);
@@ -121,6 +137,7 @@ export async function loadNewTargetTemplateIntoState(
   context.setDocument(initialState());
   context.setDraftSession(null);
   context.setDraftToml('');
+  context.setWatchProfile(null);
   context.setDirty(false);
   context.setDetailTab('config');
   context.setArtifactTab('preview');
@@ -132,9 +149,22 @@ export async function loadNewTargetTemplateIntoState(
       return;
     }
     context.setDocument({ loading: false, error: null, data: null });
-    context.primeEditorBaseline(template.draftSession, template.canonicalToml);
+    context.primeEditorBaseline(
+      template.draftSession,
+      template.canonicalToml,
+      defaultWatchProfile(),
+    );
     context.setEditorMode(kind);
-    context.setActionFeedback(createFeedback('info', `Loaded the ${kind} target template.`));
+    if (feedbackMode === 'announce') {
+      context.setActionFeedback(
+        createFeedback(
+          'info',
+          kind === 'http'
+            ? 'Started a new website watch draft.'
+            : 'Started a new local file watch draft.',
+        ),
+      );
+    }
   } catch (error) {
     if (!context.isCurrentDocumentLoad(loadId)) {
       return;
@@ -151,7 +181,7 @@ export async function previewTargetIntoState(context: EditorContext) {
   }
 
   if (context.draftSession == null && !context.draftToml.trim()) {
-    context.setFeedback('warning', 'The target document is empty.');
+    context.setFeedback('warning', 'The watch document is empty.');
     return;
   }
 
@@ -169,7 +199,13 @@ export async function previewTargetIntoState(context: EditorContext) {
     });
     context.setArtifactTab('preview');
     context.setDetailTab('changes');
-    context.setFeedback('success', 'Preview refreshed from canonical FFHN runtime artifacts.');
+    const assessment = assessWatchSetup(nextPreview);
+    context.setFeedback(
+      assessment.tone,
+      assessment.canSave
+        ? 'Section check passed. You can save this watch now.'
+        : `${assessment.title}. ${assessment.actionHint ?? assessment.body}`,
+    );
   } catch (error) {
     const message = errorMessage(error);
     context.setPreview({ loading: false, error: message, data: null });
@@ -184,7 +220,7 @@ export async function saveTargetIntoState(context: EditorContext) {
     return;
   }
   if (!context.workspaceSummary) {
-    context.setFeedback('error', 'Open a workspace before saving targets.');
+    context.setFeedback('error', 'Open a library before saving watches.');
     return;
   }
 
@@ -197,10 +233,12 @@ export async function saveTargetIntoState(context: EditorContext) {
         ? {
             previousDirectoryName: context.selectedDirectoryName,
             draftSession: context.draftSession,
+            watchProfile: context.watchProfile,
           }
         : {
             previousDirectoryName: context.selectedDirectoryName,
             rawToml: context.draftToml,
+            watchProfile: context.watchProfile,
           },
     );
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
@@ -213,7 +251,7 @@ export async function saveTargetIntoState(context: EditorContext) {
     context.setDirty(false);
     context.setFeedback(
       'success',
-      'Target saved. Baseline artifacts were reset for a clean next run.',
+      'Watch saved. History was reset so the next check starts clean.',
     );
   } catch (error) {
     if (!context.isCurrentWorkspaceUpdate(updateId)) {
@@ -267,7 +305,7 @@ export async function runSelectedTargetFromState(context: EditorContext) {
     return;
   }
   if (context.hasUnsavedWork) {
-    context.setFeedback('warning', 'Save or reset the draft before running the saved target.');
+    context.setFeedback('warning', 'Save or reset the draft before checking the saved watch.');
     return;
   }
 
@@ -327,7 +365,7 @@ export async function runWorkspaceFromState(context: EditorContext) {
     return;
   }
   if (context.hasUnsavedWork) {
-    context.setFeedback('warning', 'Save or reset the draft before running the workspace.');
+    context.setFeedback('warning', 'Save or reset the draft before checking all watches.');
     return;
   }
 

@@ -244,7 +244,7 @@ describe('dashboardState.workspace', () => {
     expect(openContext.setOpeningWorkspace).toHaveBeenNthCalledWith(1, true);
     expect(openContext.setOpeningWorkspace).toHaveBeenLastCalledWith(false);
     expect(openContext.setWorkspaceInput).toHaveBeenCalledWith('');
-    expect(openContext.setFeedback).toHaveBeenCalledWith('success', 'Workspace loaded.');
+    expect(openContext.setFeedback).toHaveBeenCalledWith('success', 'Library loaded.');
 
     const staleOpenContext = makeWorkspaceContext({
       isCurrentWorkspaceUpdate: vi.fn(() => false),
@@ -277,14 +277,14 @@ describe('dashboardState.workspace', () => {
     await createWorkspaceFromInputIntoState(blankCreateContext);
     expect(blankCreateContext.setFeedback).toHaveBeenCalledWith(
       'warning',
-      'Enter a workspace path first.',
+      'Enter a library folder path first.',
     );
 
     const createContext = makeWorkspaceContext({ workspaceInput: '  /tmp/dataarm/new-root  ' });
     api.createWorkspace.mockResolvedValueOnce(snapshot);
     await createWorkspaceFromInputIntoState(createContext);
     expect(api.createWorkspace).toHaveBeenCalledWith('/tmp/dataarm/new-root');
-    expect(createContext.setFeedback).toHaveBeenCalledWith('success', 'Workspace created.');
+    expect(createContext.setFeedback).toHaveBeenCalledWith('success', 'Library created.');
     expect(createContext.setWorkspaceInput).toHaveBeenCalledWith('');
 
     const staleCreateContext = makeWorkspaceContext({

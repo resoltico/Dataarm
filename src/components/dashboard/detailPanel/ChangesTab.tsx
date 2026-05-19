@@ -1,19 +1,24 @@
 import { useState } from 'react';
 
 import type { useDashboardState } from '../../../hooks/useDashboardState';
-import { formatTimestamp, prettyJson, selectionLabelForDraft } from '../../../lib/presentation';
-import { CodeWindow, SnapshotWorkbench } from './SnapshotWorkbench';
+import {
+  alertRuleLabel,
+  deliveryLabel,
+  formatCompareBasisLabel,
+  formatTimestamp,
+  schedulePresetLabel,
+  selectionLabelForDraft,
+} from '../../../lib/presentation';
+import { assessWatchSetup } from '../../../lib/watchSetupAssessment';
+import { SnapshotWorkbench } from './SnapshotWorkbench';
 
 type StateType = ReturnType<typeof useDashboardState>;
 
 function DraftPreviewTab({ state }: { state: StateType }) {
-  const previewStatus = state.preview.data ? prettyJson(state.preview.data.statusReport) : null;
-  const previewRun = state.preview.data ? prettyJson(state.preview.data.dryRunReport) : null;
-
   if (state.preview.loading) {
     return (
       <div className="changes-tab-empty">
-        <p>Previewing the current draft against the canonical FFHN runtime contract.</p>
+        <p>Checking the page and selected section.</p>
       </div>
     );
   }
@@ -24,7 +29,7 @@ function DraftPreviewTab({ state }: { state: StateType }) {
         <div className="outcome-card outcome-card-failed">
           <div className="outcome-card-icon">ERR</div>
           <div className="outcome-card-body">
-            <strong>Preview failed</strong>
+            <strong>Watch setup check failed</strong>
             <span>{state.preview.error}</span>
           </div>
         </div>
@@ -35,58 +40,85 @@ function DraftPreviewTab({ state }: { state: StateType }) {
   if (!state.preview.data) {
     return (
       <div className="changes-tab-empty">
-        <p>Preview this draft to validate the target contract before saving it.</p>
+        <p>Check this draft before saving so Dataarm can confirm the page and section.</p>
       </div>
     );
   }
 
   const previewDraft = state.preview.data.draftSession.draft;
+  const assessment = assessWatchSetup(state.preview.data);
 
   return (
     <div className="changes-tab">
-      <div className="outcome-card outcome-card-init">
-        <div className="outcome-card-icon">DRV</div>
+      <div
+        className={`outcome-card ${assessment.canSave ? 'outcome-card-ok' : 'outcome-card-failed'}`}
+      >
+        <div className="outcome-card-icon">{assessment.badge}</div>
         <div className="outcome-card-body">
-          <strong>Preview ready</strong>
-          <span>
-            FFHN accepted the draft and Dataarm loaded the canonical preview artifacts into the
-            workbench.
-          </span>
+          <strong>{assessment.title}</strong>
+          <span>{assessment.body}</span>
+          {assessment.actionHint ? (
+            <span className="outcome-card-time">{assessment.actionHint}</span>
+          ) : null}
         </div>
       </div>
 
       <div className="inline-actions">
+        {assessment.canSave ? (
+          <button
+            className="button-primary"
+            disabled={state.loadingTarget || state.saving}
+            onClick={state.handleSave}
+          >
+            {state.saving ? 'Saving…' : 'Save watch'}
+          </button>
+        ) : null}
         <button
-          className="button-primary"
-          disabled={state.loadingTarget || state.saving}
-          onClick={state.handleSave}
-        >
-          {state.saving ? 'Saving…' : 'Save target'}
-        </button>
-        <button
-          className="button-quiet"
+          className={assessment.canSave ? 'button-quiet' : 'button-primary'}
           onClick={() => {
             state.setDetailTab('config');
           }}
           type="button"
         >
-          Review config
+          {assessment.canSave ? 'Review settings' : 'Fix watch setup'}
         </button>
       </div>
 
       <div className="changes-meta">
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Target ID</span>
-          <span className="changes-meta-val">{state.preview.data.targetId}</span>
+          <span className="changes-meta-key">Page</span>
+          <span className="changes-meta-val" title={previewDraft.sourceLocator}>
+            {previewDraft.sourceLocator || '—'}
+          </span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Display name</span>
+          <span className="changes-meta-key">Watch name</span>
           <span className="changes-meta-val">{state.preview.data.displayName}</span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Selection</span>
+          <span className="changes-meta-key">Section</span>
           <span className="changes-meta-val">{selectionLabelForDraft(previewDraft)}</span>
         </div>
+        {assessment.candidateSummary ? (
+          <div className="changes-meta-row">
+            <span className="changes-meta-key">Match result</span>
+            <span className="changes-meta-val">{assessment.candidateSummary}</span>
+          </div>
+        ) : null}
+        {assessment.finalUrl ? (
+          <div className="changes-meta-row">
+            <span className="changes-meta-key">Loaded page</span>
+            <span className="changes-meta-val" title={assessment.finalUrl}>
+              {assessment.finalUrl}
+            </span>
+          </div>
+        ) : null}
+        {assessment.httpStatus != null ? (
+          <div className="changes-meta-row">
+            <span className="changes-meta-key">HTTP status</span>
+            <span className="changes-meta-val">{String(assessment.httpStatus)}</span>
+          </div>
+        ) : null}
       </div>
 
       {state.previewArtifactIssues.map((issue) => (
@@ -95,24 +127,13 @@ function DraftPreviewTab({ state }: { state: StateType }) {
         </p>
       ))}
 
-      {state.previewSnapshot ? (
+      {assessment.canSave && state.previewSnapshot ? (
         <SnapshotWorkbench
           currentSnapshot={state.previewSnapshot}
           previousSnapshot={null}
           heading="Preview inspection"
         />
       ) : null}
-
-      <CodeWindow
-        title="Preview status report"
-        value={previewStatus}
-        emptyMessage="No preview status report is available."
-      />
-      <CodeWindow
-        title="Preview dry-run report"
-        value={previewRun}
-        emptyMessage="No preview dry-run report is available."
-      />
     </div>
   );
 }
@@ -131,7 +152,7 @@ export function ChangesTab({ state }: { state: StateType }) {
   if (!target) {
     return (
       <div className="changes-tab-empty">
-        <p>Select a target to view its change status.</p>
+        <p>Select a watch to view its latest checks and changes.</p>
       </div>
     );
   }
@@ -150,19 +171,19 @@ export function ChangesTab({ state }: { state: StateType }) {
       label: 'Content Changed',
       cls: 'outcome-card-changed',
       icon: 'CHG',
-      desc: 'The extracted content differs from the recorded baseline.',
+      desc: 'The extracted content differs from the saved reference.',
     },
     unchanged: {
       label: 'No Changes Detected',
       cls: 'outcome-card-ok',
       icon: 'OK',
-      desc: 'The extracted content matches the baseline exactly.',
+      desc: 'The extracted content matches the saved reference exactly.',
     },
     initialized: {
-      label: 'Baseline Recorded',
+      label: 'First Check Saved',
       cls: 'outcome-card-init',
       icon: 'NEW',
-      desc: 'First run completed. Future runs will compare against this baseline.',
+      desc: 'First check completed. Future checks will compare against this saved reference.',
     },
   };
 
@@ -175,8 +196,8 @@ export function ChangesTab({ state }: { state: StateType }) {
         <div className="outcome-card outcome-card-none">
           <div className="outcome-card-icon">IDLE</div>
           <div className="outcome-card-body">
-            <strong>Never Run</strong>
-            <span>Run this target to record the first baseline.</span>
+            <strong>First check needed</strong>
+            <span>Run this watch once so Dataarm can save the first reference version.</span>
           </div>
           <button
             className="button-strong outcome-card-run"
@@ -184,7 +205,7 @@ export function ChangesTab({ state }: { state: StateType }) {
             disabled={state.isBusy}
             type="button"
           >
-            {state.runningTarget ? 'Running target…' : 'Run target'}
+            {state.runningTarget ? 'Checking watch…' : 'Check watch'}
           </button>
         </div>
       ) : config ? (
@@ -204,33 +225,35 @@ export function ChangesTab({ state }: { state: StateType }) {
             title={state.hasUnsavedWork ? 'Save or reset the draft first.' : undefined}
             type="button"
           >
-            {state.runningTarget ? 'Running target…' : 'Run target'}
+            {state.runningTarget ? 'Checking watch…' : 'Check watch'}
           </button>
         </div>
       ) : null}
 
       <div className="changes-meta">
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Source</span>
+          <span className="changes-meta-key">Page</span>
           <span className="changes-meta-val" title={target.sourceLocator ?? undefined}>
             {target.sourceLocator ?? '—'}
           </span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Selector</span>
+          <span className="changes-meta-key">Section</span>
           <span className="changes-meta-val">{target.selectionLabel ?? '—'}</span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Compare basis</span>
-          <span className="changes-meta-val">{target.compareBasis ?? '—'}</span>
+          <span className="changes-meta-key">Compare using</span>
+          <span className="changes-meta-val">{formatCompareBasisLabel(target.compareBasis)}</span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Directory</span>
-          <span className="changes-meta-val">{target.directoryName}</span>
+          <span className="changes-meta-key">Check every</span>
+          <span className="changes-meta-val">{schedulePresetLabel(target.watchProfile)}</span>
         </div>
         <div className="changes-meta-row">
-          <span className="changes-meta-key">Target ID</span>
-          <span className="changes-meta-val">{target.targetId ?? '—'}</span>
+          <span className="changes-meta-key">Alerts</span>
+          <span className="changes-meta-val">
+            {`${alertRuleLabel(target.watchProfile)} · ${deliveryLabel(target.watchProfile)}`}
+          </span>
         </div>
       </div>
 
@@ -248,10 +271,10 @@ export function ChangesTab({ state }: { state: StateType }) {
         <div className="changes-history">
           <div className="changes-history-head">
             <div>
-              <strong>Baseline timeline</strong>
+              <strong>History timeline</strong>
               <p>
-                Pick a retained baseline to inspect the rendered fragment, extraction record, and
-                compare payload without leaving this workbench.
+                Pick a saved check to inspect the selected section, extracted text, and change
+                payload without leaving Dataarm.
               </p>
             </div>
           </div>
@@ -279,13 +302,14 @@ export function ChangesTab({ state }: { state: StateType }) {
           <SnapshotWorkbench
             currentSnapshot={currentSnapshot}
             previousSnapshot={snapshotHistory[selectedHistoryIndex] ?? null}
-            heading="Canonical snapshot inspection"
+            heading="What changed"
           />
         </div>
       ) : (
         <div className="changes-tab-empty">
           <p>
-            No baseline snapshots exist yet. Run this target to create the first compare artifact.
+            Dataarm has not saved a reference version yet. Check this watch once to start its
+            history.
           </p>
         </div>
       )}

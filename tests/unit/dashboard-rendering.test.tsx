@@ -41,7 +41,7 @@ describe('TopBar', () => {
         firstRun: 1,
         attention: 1,
       },
-      actionFeedback: { tone: 'success', message: 'Workspace loaded.' },
+      actionFeedback: { tone: 'success', message: 'Library loaded.' },
       handleOpenWorkspacePath,
       handleRunWorkspace,
     });
@@ -50,13 +50,13 @@ describe('TopBar', () => {
 
     expect(screen.getByText('Dataarm')).toBeTruthy();
     expect(screen.getByText('1 changed')).toBeTruthy();
-    expect(screen.getByText('1 pending')).toBeTruthy();
-    expect(screen.getByText('1 issues')).toBeTruthy();
+    expect(screen.getByText('1 first checks')).toBeTruthy();
+    expect(screen.getByText('1 needs repair')).toBeTruthy();
     expect(screen.getByText('2/4 ready')).toBeTruthy();
-    expect(screen.getByText('Workspace loaded.')).toBeTruthy();
+    expect(screen.getByText('Library loaded.')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open folder' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Run workspace' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open library' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check all watches' }));
 
     expect(handleOpenWorkspacePath).toHaveBeenCalledTimes(1);
     expect(handleRunWorkspace).toHaveBeenCalledTimes(1);
@@ -69,8 +69,8 @@ describe('TopBar', () => {
     });
     const { rerender } = render(<TopBar state={noWorkspaceState} />);
 
-    expect(getButton('Open folder').disabled).toBe(true);
-    expect(getButton('Run workspace').disabled).toBe(true);
+    expect(getButton('Open library').disabled).toBe(true);
+    expect(getButton('Check all watches').disabled).toBe(true);
 
     rerender(
       <TopBar
@@ -80,8 +80,10 @@ describe('TopBar', () => {
       />,
     );
 
-    expect(getButton('Run workspace').disabled).toBe(true);
-    expect(getButton('Run workspace').getAttribute('title')).toBe('Save or reset the draft first.');
+    expect(getButton('Check all watches').disabled).toBe(true);
+    expect(getButton('Check all watches').getAttribute('title')).toBe(
+      'Save or reset the draft first.',
+    );
   });
 
   it('shows the running workspace label and hides zero-value stat chips', () => {
@@ -101,10 +103,10 @@ describe('TopBar', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Running workspace…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Checking watches…' })).toBeTruthy();
     expect(screen.queryByText('0 changed')).toBeNull();
-    expect(screen.queryByText('0 pending')).toBeNull();
-    expect(screen.queryByText('0 issues')).toBeNull();
+    expect(screen.queryByText('0 first checks')).toBeNull();
+    expect(screen.queryByText('0 needs repair')).toBeNull();
   });
 });
 
@@ -167,19 +169,20 @@ describe('NavSidebar', () => {
 
     render(<NavSidebar state={state} filterView="all" setFilterView={setFilterView} />);
 
-    fireEvent.change(screen.getByLabelText('Switch watch root'), {
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced library tools' }));
+    fireEvent.change(screen.getByLabelText('Change library folder'), {
       target: { value: '/tmp/dataarm/typed-watch-root' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Changed' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Needs attention' }));
-    fireEvent.click(screen.getByRole('button', { name: 'New HTTP' }));
-    fireEvent.click(screen.getByRole('button', { name: 'New file' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Open watch root' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Create watch root' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Failed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add watch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced: local file' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open library' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create library' }));
     fireEvent.click(screen.getByRole('button', { name: 'alpha' }));
 
     expect(setFilterView).toHaveBeenNthCalledWith(1, 'changed');
-    expect(setFilterView).toHaveBeenNthCalledWith(2, 'attention');
+    expect(setFilterView).toHaveBeenNthCalledWith(2, 'failed');
     expect(setWorkspaceInput).toHaveBeenCalledWith('/tmp/dataarm/typed-watch-root');
     expect(handleStartNewTarget).toHaveBeenNthCalledWith(1, 'http');
     expect(handleStartNewTarget).toHaveBeenNthCalledWith(2, 'file');
@@ -193,7 +196,7 @@ describe('NavSidebar', () => {
       screen.getByRole('button', { name: 'Changed' }).className.includes('nav-item-alert'),
     ).toBe(true);
     expect(
-      screen.getByRole('button', { name: 'Needs attention' }).className.includes('nav-item-alert'),
+      screen.getByRole('button', { name: 'Failed' }).className.includes('nav-item-alert'),
     ).toBe(true);
   });
 
@@ -201,14 +204,17 @@ describe('NavSidebar', () => {
     const unchangedPathState = makeDashboardState({
       workspaceInput: '/tmp/dataarm/demo-watch-root',
     });
-    const { rerender } = render(
+    const { unmount } = render(
       <NavSidebar state={unchangedPathState} filterView="all" setFilterView={vi.fn()} />,
     );
 
-    expect(getButton('Open watch root').disabled).toBe(true);
-    expect(getButton('Create watch root').disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced library tools' }));
+    expect(getButton('Open library').disabled).toBe(true);
+    expect(getButton('Create library').disabled).toBe(false);
 
-    rerender(
+    unmount();
+
+    render(
       <NavSidebar
         state={makeDashboardState({
           openingWorkspace: true,
@@ -219,10 +225,11 @@ describe('NavSidebar', () => {
       />,
     );
 
-    expect(getButton('Opening watch root…').disabled).toBe(true);
-    expect(getButton('Create watch root').disabled).toBe(true);
-    expect(getButton('New HTTP').disabled).toBe(true);
-    expect(getButton('New file').disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced library tools' }));
+    expect(getButton('Opening library…').disabled).toBe(true);
+    expect(getButton('Create library').disabled).toBe(true);
+    expect(getButton('Add watch').disabled).toBe(true);
+    expect(getButton('Advanced: local file').disabled).toBe(true);
   });
 
   it('enables workspace controls when there is no current workspace path to compare against', () => {
@@ -238,8 +245,9 @@ describe('NavSidebar', () => {
       />,
     );
 
-    expect(getButton('Open watch root').disabled).toBe(false);
-    expect(getButton('Create watch root').disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced library tools' }));
+    expect(getButton('Open library').disabled).toBe(false);
+    expect(getButton('Create library').disabled).toBe(false);
   });
 });
 
@@ -273,7 +281,7 @@ describe('NotificationCenter', () => {
       />,
     );
     expect(
-      screen.getByText('Important alerts stay inside Dataarm until you enable system delivery.'),
+      screen.getByText('Alerts stay inside Dataarm until you enable system notifications.'),
     ).toBeTruthy();
 
     rerender(
@@ -377,10 +385,10 @@ describe('NotificationCenter', () => {
 
     render(<NotificationCenter state={state} />);
 
-    fireEvent.change(screen.getByLabelText('Alert when'), {
+    fireEvent.change(screen.getByLabelText('Notify for'), {
       target: { value: 'all_completions' },
     });
-    fireEvent.change(screen.getByLabelText('Deliver via'), {
+    fireEvent.change(screen.getByLabelText('Deliver through'), {
       target: { value: 'system' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
@@ -424,7 +432,7 @@ describe('TargetTable', () => {
     const { rerender } = render(<TargetTable state={emptyState} filterView="all" />);
 
     expect(
-      screen.getByText('No targets yet. Use New HTTP or New file in the sidebar to create one.'),
+      screen.getByText('Add your first page to start tracking a website section over time.'),
     ).toBeTruthy();
 
     rerender(
@@ -432,11 +440,11 @@ describe('TargetTable', () => {
         state={makeDashboardState({
           targets: [makeTarget()],
         })}
-        filterView="attention"
+        filterView="failed"
       />,
     );
 
-    expect(screen.getByText('No targets match this filter.')).toBeTruthy();
+    expect(screen.getByText('No watches match this view.')).toBeTruthy();
   });
 
   it('renders filtered rows, outcome labels, and selection handlers', () => {
@@ -482,13 +490,13 @@ describe('TargetTable', () => {
     });
     const { rerender } = render(<TargetTable state={state} filterView="all" />);
 
-    expect(screen.getAllByText('Unchanged').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('No change').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Changed').length).toBeGreaterThan(0);
-    expect(screen.getByText('New baseline')).toBeTruthy();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByText('First check')).toBeTruthy();
+    expect(screen.getByText('Page not configured')).toBeTruthy();
     expect(screen.getByText('Failed to connect')).toBeTruthy();
     expect(screen.getByText('anonymous')).toBeTruthy();
-    expect(screen.getByText('Not recorded')).toBeTruthy();
+    expect(screen.getAllByText('Not recorded').length).toBeGreaterThan(0);
 
     fireEvent.click(
       screen.getByText('Changed target').closest('tr') ?? screen.getByText('Changed target'),
@@ -529,7 +537,7 @@ describe('TargetTable', () => {
           selectedTarget: targets[3] ?? null,
           handleSelectTarget,
         })}
-        filterView="attention"
+        filterView="failed"
       />,
     );
 
@@ -564,15 +572,15 @@ describe('TargetEditor and StatusPill', () => {
 
     expect(screen.getByText('Config warning')).toBeTruthy();
     expect(screen.getByText('Document failed to load')).toBeTruthy();
+    expect(screen.getByText('Loading the saved watch setup for this selection.')).toBeTruthy();
+    expect(getButton('Check section').disabled).toBe(true);
+    expect(getButton('Save watch').disabled).toBe(true);
+    expect(getButton('Check now').disabled).toBe(true);
     expect(
-      screen.getByText('Loading the canonical target document for this selection.'),
+      screen.getByText('Page: /tmp/dataarm/demo-watch-root/sources/status-board.html'),
     ).toBeTruthy();
-    expect(getButton('Preview target').disabled).toBe(true);
-    expect(getButton('Save target').disabled).toBe(true);
-    expect(getButton('Run target').disabled).toBe(true);
-    expect(screen.getByText('Target ID: Pending parse')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Delete target' })).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Open folder' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Delete watch' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Open in Finder' })).toHaveLength(1);
   });
 
   it('renders draft mode actions and status pills', () => {
@@ -592,11 +600,11 @@ describe('TargetEditor and StatusPill', () => {
       </>,
     );
 
-    expect(screen.getByText(/authoring a new file target/u)).toBeTruthy();
-    expect(screen.getByText(/Guided contract:/u)).toBeTruthy();
-    expect(screen.getByLabelText('Canonical target TOML')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Delete target' })).toBeNull();
-    expect(screen.getByText('Change Detected')).toBeTruthy();
+    expect(screen.getByText(/adding a local file watch/u)).toBeTruthy();
+    expect(screen.getByText(/Selected section:/u)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show technical watch contract' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Delete watch' })).toBeNull();
+    expect(screen.getByText('Changed')).toBeTruthy();
     expect(screen.getByText('Retry now')).toBeTruthy();
   });
 
@@ -622,12 +630,12 @@ describe('TargetEditor and StatusPill', () => {
       </>,
     );
 
-    expect(screen.getByText(/editing a saved target/u)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Running…' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Running…' }).getAttribute('title')).toBe(
-      'Save or reset the draft before running the saved target.',
+    expect(screen.getByText(/editing a saved watch/u)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Checking…' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Checking…' }).getAttribute('title')).toBe(
+      'Save or reset the draft before checking the saved watch.',
     );
-    const readyPill = screen.getByText('Ready').closest('span');
+    const readyPill = screen.getByText('Ready to check').closest('span');
     expect(readyPill?.className.includes('pill-compact')).toBe(false);
   });
 });

@@ -5,10 +5,12 @@ import type {
   TargetDraftCanonicalizer,
   TargetSummary,
   TargetTemplateKind,
+  WatchProfile,
   WorkspaceSnapshot,
   WorkspaceSummary,
 } from '../types';
 import {
+  defaultWatchProfile,
   errorMessage,
   normalizeDraftForKind,
   normalizeDraftForSelectionKind,
@@ -63,8 +65,10 @@ export type DashboardActionsContext = {
     options?: { clearInspector?: boolean },
   ) => void;
   cloneBaselineSession: () => EditorContext['draftSession'];
+  cloneBaselineWatchProfile: () => WatchProfile | null;
   editorBaselineToml: string;
   updateGuidedDraft: (updater: (draft: TargetDraft) => TargetDraft) => void;
+  updateWatchProfile: (updater: (profile: WatchProfile) => WatchProfile) => void;
   addCanonicalizerToDraft: () => void;
   updateCanonicalizerInDraft: (
     index: number,
@@ -193,6 +197,7 @@ export function resetDraftAction(context: DashboardActionsContext) {
     return;
   }
   context.applyEditorState(context.cloneBaselineSession(), context.editorBaselineToml);
+  context.updateWatchProfile(() => context.cloneBaselineWatchProfile() ?? defaultWatchProfile());
   context.setDirty(false);
 }
 

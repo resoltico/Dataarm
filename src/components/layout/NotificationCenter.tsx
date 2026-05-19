@@ -11,9 +11,9 @@ type StateType = ReturnType<typeof useDashboardState>;
 
 const policyOptions: Array<{ value: NotificationPolicy; label: string }> = [
   { value: 'off', label: 'Off' },
-  { value: 'errors_only', label: 'Errors only' },
-  { value: 'changes_and_errors', label: 'Changes and errors' },
-  { value: 'all_completions', label: 'All completions' },
+  { value: 'errors_only', label: 'Failures only' },
+  { value: 'changes_and_errors', label: 'Changes and failures' },
+  { value: 'all_completions', label: 'Every completed check' },
 ];
 
 const deliveryOptions: Array<{ value: NotificationDelivery; label: string }> = [
@@ -27,7 +27,7 @@ function permissionMessage(
   delivery: NotificationDelivery,
 ) {
   if (delivery === 'in_app') {
-    return 'Important alerts stay inside Dataarm until you enable system delivery.';
+    return 'Alerts stay inside Dataarm until you enable system notifications.';
   }
 
   switch (permissionState) {
@@ -67,7 +67,7 @@ export function NotificationCenter({ state }: { state: StateType }) {
       <div className="sidebar-subsection-head">
         <div>
           <p className="sidebar-eyebrow">Notifications</p>
-          <h3>Alert center</h3>
+          <h3>Alerts and delivery</h3>
         </div>
         <button
           className="button-quiet"
@@ -82,9 +82,9 @@ export function NotificationCenter({ state }: { state: StateType }) {
 
       <div className="notification-controls">
         <label className="notification-control">
-          <span>Alert when</span>
+          <span>Notify for</span>
           <select
-            aria-label="Alert when"
+            aria-label="Notify for"
             value={settings.notifyWhen}
             onChange={(event) => {
               void state.handleUpdateNotificationSettings({
@@ -102,9 +102,9 @@ export function NotificationCenter({ state }: { state: StateType }) {
         </label>
 
         <label className="notification-control">
-          <span>Deliver via</span>
+          <span>Deliver through</span>
           <select
-            aria-label="Deliver via"
+            aria-label="Deliver through"
             value={settings.delivery}
             onChange={(event) => {
               void state.handleUpdateNotificationSettings({
@@ -130,7 +130,8 @@ export function NotificationCenter({ state }: { state: StateType }) {
 
       {!notificationCenter || notificationCenter.items.length === 0 ? (
         <p className="notification-empty-note">
-          No important alerts yet. Run a target or the workspace to populate the history.
+          No alerts yet. Create a watch, choose its alert behavior, and run a check to populate the
+          history.
         </p>
       ) : (
         <div className="notification-feed scroll-region">

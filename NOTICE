@@ -61,6 +61,7 @@ It also carries scoped MPL-2.0 exceptions for CSS selector and parser crates:
   cssparser
   cssparser-macros
   dtoa-short
+  htmlcut-selectors
   option-ext
   selectors
 

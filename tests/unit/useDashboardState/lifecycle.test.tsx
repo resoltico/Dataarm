@@ -32,6 +32,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn<(workspacePath: string) => Promise<WorkspaceSnapshot>>(),
   deleteTarget: vi.fn<(directoryName: string) => Promise<WorkspaceSnapshot>>(),
   getTargetTemplate: vi.fn<(kind: TargetTemplateKind) => Promise<TargetTemplate>>(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn<(directoryName: string) => Promise<void>>(),
   openWorkspacePath: vi.fn<() => Promise<void>>(),
   openWorkspace: vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>(),
@@ -185,7 +186,7 @@ describe('useDashboardState lifecycle', () => {
       expect(result.current.draftToml).toContain('replacement_http');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'info',
-        message: 'Loaded the http target template.',
+        message: 'Started a new website watch draft.',
       });
     });
 
@@ -220,7 +221,7 @@ describe('useDashboardState lifecycle', () => {
       expect(result.current.editorMode).toBe('http');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'info',
-        message: 'Loaded the http target template.',
+        message: 'Started a new website watch draft.',
       });
     });
   });
@@ -240,7 +241,7 @@ describe('useDashboardState lifecycle', () => {
     await act(async () => {
       await result.current.handleStartNewTarget('http');
     });
-    expect(confirm).toHaveBeenCalledWith('Discard the unsaved target changes?');
+    expect(confirm).toHaveBeenCalledWith('Discard the unsaved watch changes?');
     expect(api.getTargetTemplate).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
@@ -253,7 +254,7 @@ describe('useDashboardState lifecycle', () => {
       expect(result.current.editorMode).toBe('file');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'info',
-        message: 'Loaded the file target template.',
+        message: 'Started a new local file watch draft.',
       });
     });
 
@@ -280,7 +281,7 @@ describe('useDashboardState lifecycle', () => {
       expect(result.current.dirty).toBe(true);
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Preview refreshed from canonical FFHN runtime artifacts.',
+        message: 'Section check passed. You can save this watch now.',
       });
     });
 
@@ -303,7 +304,7 @@ describe('useDashboardState lifecycle', () => {
     await act(async () => {
       await result.current.handleSelectTarget('alpha');
     });
-    expect(confirm).toHaveBeenLastCalledWith('Discard the unsaved target draft?');
+    expect(confirm).toHaveBeenLastCalledWith('Discard the unsaved watch draft?');
   });
 
   it('surfaces bootstrap, document, preview, save, and delete failures', async () => {
@@ -327,7 +328,7 @@ describe('useDashboardState lifecycle', () => {
     });
     expect(failedBootstrap.result.current.actionFeedback).toMatchObject({
       tone: 'error',
-      message: 'Open a workspace before saving targets.',
+      message: 'Open a library before saving watches.',
     });
     await act(async () => {
       await failedBootstrap.result.current.handleOpenWorkspacePath();
@@ -390,7 +391,7 @@ describe('useDashboardState lifecycle', () => {
       expect(result.current.detailTab).toBe('changes');
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Preview refreshed from canonical FFHN runtime artifacts.',
+        message: 'Section check passed. You can save this watch now.',
       });
     });
 

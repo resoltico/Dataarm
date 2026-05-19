@@ -71,7 +71,7 @@ function resolveSessionIdFromRequest(payloadSessionId, headerSessionId, cookies)
 }
 
 function workspaceSourceForPath(session, workspacePath) {
-  return workspacePath === session.paths.demoRoot ? 'demo' : 'user';
+  return workspacePath === session.paths.examplesRoot ? 'demo' : 'user';
 }
 
 function workspaceName(workspacePath) {
@@ -82,7 +82,7 @@ function workspaceName(workspacePath) {
 function createServerState(paths) {
   return {
     paths,
-    currentWorkspacePath: paths.demoRoot,
+    currentWorkspacePath: paths.libraryRoot,
     recentWorkspaces: [],
     notificationSequence: 0,
     notificationCenter: {
@@ -123,7 +123,7 @@ function workspaceSnapshot(state, inventory) {
 }
 
 function currentWorkspacePath(state) {
-  return state.currentWorkspacePath ?? state.paths.demoRoot;
+  return state.currentWorkspacePath ?? state.paths.libraryRoot;
 }
 
 function resolveTargetDirectory(workspacePath, directoryName) {
@@ -177,8 +177,8 @@ export function dataarmBrowserWorkbenchPlugin() {
     session.initializePromise = (async () => {
       session.paths = await ensureBrowserWorkbenchFixtures(bridge, sessionId);
       session.state = createServerState(session.paths);
-      recentsWithHead(session.state, session.paths.demoRoot);
-      session.state.currentWorkspacePath = session.paths.demoRoot;
+      recentsWithHead(session.state, session.paths.libraryRoot);
+      session.state.currentWorkspacePath = session.paths.libraryRoot;
       session.initialized = true;
     })();
     sessions.set(sessionId, session);
@@ -199,7 +199,7 @@ export function dataarmBrowserWorkbenchPlugin() {
         };
       }
       case 'open_workspace': {
-        const workspacePath = params?.workspacePath ?? session.paths.demoRoot;
+        const workspacePath = params?.workspacePath ?? session.paths.libraryRoot;
         const inventory = await ensureInventory(bridge, session, workspacePath);
         state.currentWorkspacePath = workspacePath;
         recentsWithHead(state, workspacePath);
@@ -227,6 +227,8 @@ export function dataarmBrowserWorkbenchPlugin() {
         });
       case 'get_target_template':
         return bridge.request('get_target_template', { kind: params.kind });
+      case 'inspect_source':
+        return bridge.request('inspect_source', { request: params.request });
       case 'preview_target':
         return bridge.request('preview_target', { request: params.request });
       case 'save_target': {

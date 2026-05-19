@@ -16,7 +16,11 @@ import {
 const contract = readAppVersionContract();
 
 async function writeFormattedFile(filePath, contents) {
-  const formatted = await prettier.format(contents, { filepath: filePath });
+  const resolvedConfig = (await prettier.resolveConfig(filePath)) ?? {};
+  const formatted = await prettier.format(contents, {
+    ...resolvedConfig,
+    filepath: filePath,
+  });
   fs.writeFileSync(filePath, formatted);
 }
 

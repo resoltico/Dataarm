@@ -48,9 +48,9 @@ pub(super) fn build_target_run_candidate(
         "initialized" if should_notify_change(policy) => Some(NotificationCandidate {
             tone: NotificationTone::Success,
             scope_kind: NotificationScopeKind::TargetRun,
-            title: format!("Baseline captured for {target_name}."),
+            title: format!("First check saved for {target_name}."),
             body: format!(
-                "The first live run in {workspace_name} established a baseline for {target_name}."
+                "The first live run in {workspace_name} saved the starting reference for {target_name}."
             ),
             workspace_name,
             target_display_name: Some(target_name),
@@ -61,7 +61,7 @@ pub(super) fn build_target_run_candidate(
                 scope_kind: NotificationScopeKind::TargetRun,
                 title: format!("No change in {target_name}."),
                 body: format!(
-                    "The live run in {workspace_name} matched the current baseline for {target_name}."
+                    "The live run in {workspace_name} matched the saved reference for {target_name}."
                 ),
                 workspace_name,
                 target_display_name: Some(target_name),
@@ -122,13 +122,13 @@ pub(super) fn build_workspace_run_candidate(
             tone: NotificationTone::Error,
             scope_kind: NotificationScopeKind::WorkspaceRun,
             title: if skipped == 1 {
-                "Workspace run skipped 1 directory.".to_owned()
+                "All-watch check skipped 1 watch.".to_owned()
             } else {
-                format!("Workspace run skipped {skipped} directories.")
+                format!("All-watch check skipped {skipped} watches.")
             },
             body: format!(
-                "{workspace_name} skipped {} because durable target ids were invalid or unreadable.",
-                pluralize(skipped, "directory")
+                "{workspace_name} skipped {} because some saved watch files were invalid or unreadable.",
+                pluralize(skipped, "watch")
             ),
             workspace_name,
             target_display_name: None,
@@ -137,12 +137,12 @@ pub(super) fn build_workspace_run_candidate(
 
     if changed_total > 0 && should_notify_change(policy) {
         let changed_phrase = if counts.changed > 0 {
-            Some(pluralize(counts.changed, "changed target"))
+            Some(pluralize(counts.changed, "changed watch"))
         } else {
             None
         };
         let initialized_phrase = if counts.initialized > 0 {
-            Some(pluralize(counts.initialized, "new baseline"))
+            Some(pluralize(counts.initialized, "new saved reference"))
         } else {
             None
         };
@@ -155,8 +155,8 @@ pub(super) fn build_workspace_run_candidate(
         return Some(NotificationCandidate {
             tone: NotificationTone::Warning,
             scope_kind: NotificationScopeKind::WorkspaceRun,
-            title: format!("Workspace run found {details}."),
-            body: format!("{workspace_name} finished a live batch run with {details}."),
+            title: format!("All-watch check found {details}."),
+            body: format!("{workspace_name} finished checking all watches with {details}."),
             workspace_name,
             target_display_name: None,
         });
@@ -164,21 +164,21 @@ pub(super) fn build_workspace_run_candidate(
 
     if matches!(policy, NotificationPolicy::AllCompletions) {
         let title = if counts.unchanged > 0 && counts.other == 0 {
-            "Workspace run completed with no changes.".to_owned()
+            "All-watch check completed with no changes.".to_owned()
         } else {
-            "Workspace run completed.".to_owned()
+            "All-watch check completed.".to_owned()
         };
         let body = if counts.unchanged > 0 && counts.other == 0 {
             format!(
                 "{workspace_name} checked {} and found no changes.",
-                pluralize(counts.unchanged, "target")
+                pluralize(counts.unchanged, "watch")
             )
         } else {
             format!(
-                "{workspace_name} completed the live batch run across {}.",
+                "{workspace_name} completed the full check across {}.",
                 pluralize(
                     counts.changed + counts.initialized + counts.unchanged + counts.other,
-                    "target"
+                    "watch"
                 )
             )
         };

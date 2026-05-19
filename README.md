@@ -1,31 +1,31 @@
 # Dataarm
 
 Dataarm is a macOS desktop app for watching the exact part of a website you care about.
-Instead of telling you that an entire page changed, it helps you track one specific fragment, keep a baseline, and inspect what changed over time.
+Instead of telling you that an entire page changed, it helps you track one specific part, save a reference version, and inspect what changed over time.
 
 ## What It Helps You Do
 
 - Watch a product page section for price or availability changes
 - Track release notes, status pages, documentation sections, or policy text
 - Focus on one meaningful fragment instead of noisy full-page diffs
-- Review the current baseline, recent history, and compare output in one desktop workbench
+- Review the saved reference, recent history, and change details in one desktop app
 
 ## Why People Use It
 
 - Less noise: monitor the part of the page that matters, not the whole page shell
 - More confidence: preview the extraction before saving a watch
 - Better traceability: keep retained history and inspect past snapshots and compare output
-- Local control: your watch workspace lives on disk, not in a hosted monitoring service
+- Local control: your watch library lives on disk, not in a hosted monitoring service
 
 ## What Dataarm Does Today
 
 Dataarm lets you:
 
-- open or create a watch workspace
-- add and edit watch targets
-- preview what a target will extract
-- run one target or a whole workspace on demand
-- inspect target status, last run, retained history, and compare artifacts
+- open or create a local watch library
+- add and edit website watches
+- preview the page section a watch will follow
+- check one watch or all watches on demand
+- inspect watch status, recent checks, retained history, and saved change details
 
 ## Current Product Shape
 

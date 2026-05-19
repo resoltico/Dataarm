@@ -51,6 +51,7 @@ fn main() {
             create_workspace,
             read_target,
             get_target_template,
+            inspect_source,
             preview_target,
             save_target,
             update_notification_settings,

@@ -2,6 +2,7 @@ use super::{
     ensure_directory, format_process_error, read_target_document, target_selection_label,
     target_source_locator,
 };
+use crate::logic::watch_profile::load_watch_profile;
 use crate::models::{
     TargetBaselinePhase, TargetCompareBasis, TargetRunOutcome, TargetSelectionKind,
     TargetSourceKind, TargetStatusKind, TargetSummary,
@@ -56,10 +57,12 @@ fn inventory_target_directory(
         .ok_or_else(|| format!("Invalid target directory name {}", target_dir.display()))?
         .to_owned();
     let target_file = target_dir.join("target.toml");
+    let watch_profile = load_watch_profile(&target_dir)?;
     let raw_toml = fs::read_to_string(&target_file)
         .map_err(|error| format!("Failed to read {}: {error}", target_file.display()))?;
     let parsed_target = read_target_document(&raw_toml);
     let target_paths = ffhn_core::TargetPaths::try_new(workspace, directory_name.as_str());
+    let current_compare_preview = read_current_compare_preview(&target_dir);
 
     let status_result = match &target_paths {
         Ok(paths) => Some(ffhn_core::status(paths)),
@@ -140,7 +143,24 @@ fn inventory_target_directory(
         last_run_at: last_run_snapshot
             .as_ref()
             .map(|snapshot| snapshot.run_report().run_started_at().to_owned()),
+        current_compare_preview,
+        watch_profile,
         error_message: error_message.or(parsed_target_error),
+    })
+}
+
+fn read_current_compare_preview(target_dir: &Path) -> Option<String> {
+    let compare_path = target_dir.join("snapshots/current/compare.txt");
+    let compare_text = fs::read_to_string(compare_path).ok()?;
+    let compact = compare_text.trim().replace('\n', " ");
+    if compact.is_empty() {
+        return None;
+    }
+    let preview = compact.chars().take(140).collect::<String>();
+    Some(if compact.chars().count() > 140 {
+        format!("{preview}…")
+    } else {
+        preview
     })
 }
 

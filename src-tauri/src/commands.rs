@@ -51,6 +51,13 @@ pub(crate) fn get_target_template(kind: String) -> Result<TargetTemplate, String
 }
 
 #[tauri::command]
+pub(crate) fn inspect_source(
+    request: SourceInspectionRequest,
+) -> Result<SourceInspectionResult, String> {
+    inspect_source_logic(request)
+}
+
+#[tauri::command]
 pub(crate) async fn preview_target(request: TargetPreviewRequest) -> Result<TargetPreview, String> {
     tauri::async_runtime::spawn_blocking(move || preview_target_logic(request))
         .await

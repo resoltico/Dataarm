@@ -34,10 +34,10 @@ Verify the release directly:
 
 ```bash
 gh release view vX.Y.Z --json tagName,isDraft,isPrerelease,publishedAt,url,assets
-npm run verify:github-release -- vX.Y.Z
+mise exec -- npm run verify:github-release -- vX.Y.Z
 ```
 
-`npm run verify:github-release -- vX.Y.Z` now reuses the authenticated `gh` session directly. A separate manual `GH_TOKEN=...` export is not required.
+`mise exec -- npm run verify:github-release -- vX.Y.Z` now reuses the authenticated `gh` session directly. A separate manual `GH_TOKEN=...` export is not required.
 
 Requirements:
 

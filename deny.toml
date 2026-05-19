@@ -34,6 +34,7 @@ exceptions = [
   { crate = "cssparser", allow = ["MPL-2.0"] },
   { crate = "cssparser-macros", allow = ["MPL-2.0"] },
   { crate = "dtoa-short", allow = ["MPL-2.0"] },
+  { crate = "htmlcut-selectors", allow = ["MPL-2.0"] },
   { crate = "option-ext", allow = ["MPL-2.0"] },
   { crate = "selectors", allow = ["MPL-2.0"] }
 ]

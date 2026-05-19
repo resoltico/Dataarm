@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
   deleteTarget: vi.fn(),
   getTargetTemplate: vi.fn(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn(),
   openWorkspacePath: vi.fn(),
   openWorkspace: vi.fn(),
@@ -112,7 +113,7 @@ describe('useDashboardState target persistence', () => {
       expect(result.current.dirty).toBe(false);
       expect(result.current.actionFeedback).toMatchObject({
         tone: 'success',
-        message: 'Target saved. Baseline artifacts were reset for a clean next run.',
+        message: 'Watch saved. History was reset so the next check starts clean.',
       });
     });
 
@@ -124,7 +125,9 @@ describe('useDashboardState target persistence', () => {
     await waitFor(() => {
       expect(result.current.selectedDirectoryName).toBeNull();
       expect(result.current.document.data).toBeNull();
-      expect(result.current.draftToml).toBe('');
+      expect(result.current.editorMode).toBe('http');
+      expect(result.current.draftSession?.draft.targetId).toBe('website_watch');
+      expect(result.current.draftToml).toContain('target_id = "website_watch"');
       expect(result.current.preview.data).toBeNull();
       expect(result.current.lastRun.data).toBeNull();
       expect(result.current.actionFeedback).toMatchObject({

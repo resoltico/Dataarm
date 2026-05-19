@@ -293,6 +293,100 @@ pub(crate) struct WorkspaceSummary {
     pub(crate) last_run_count: usize,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WatchSchedulePreset {
+    #[default]
+    #[serde(rename = "every_15_minutes")]
+    Every15Minutes,
+    ManualOnly,
+    #[serde(rename = "every_5_minutes")]
+    Every5Minutes,
+    Hourly,
+    Daily,
+    Weekdays,
+    Weekends,
+    Custom,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WatchAlertKind {
+    #[default]
+    AnyChange,
+    TextAppears,
+    TextDisappears,
+    PriceDropsBelow,
+    PriceChangesBy,
+    RegexMatch,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WatchSchedule {
+    pub(crate) preset: WatchSchedulePreset,
+    pub(crate) custom_expression: Option<String>,
+}
+
+impl Default for WatchSchedule {
+    fn default() -> Self {
+        Self {
+            preset: WatchSchedulePreset::Every15Minutes,
+            custom_expression: None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WatchAlertRule {
+    pub(crate) kind: WatchAlertKind,
+    pub(crate) text_operand: Option<String>,
+    pub(crate) numeric_operand: Option<f64>,
+    pub(crate) regex_pattern: Option<String>,
+    pub(crate) ignore_text_fragments: Vec<String>,
+}
+
+impl Default for WatchAlertRule {
+    fn default() -> Self {
+        Self {
+            kind: WatchAlertKind::AnyChange,
+            text_operand: None,
+            numeric_operand: None,
+            regex_pattern: None,
+            ignore_text_fragments: Vec::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WatchProfile {
+    pub(crate) schema_name: String,
+    pub(crate) schema_version: u32,
+    pub(crate) paused: bool,
+    pub(crate) folder_name: Option<String>,
+    pub(crate) tags: Vec<String>,
+    pub(crate) schedule: WatchSchedule,
+    pub(crate) alert_rule: WatchAlertRule,
+    pub(crate) delivery: NotificationDelivery,
+}
+
+impl Default for WatchProfile {
+    fn default() -> Self {
+        Self {
+            schema_name: "dataarm.watch_profile".to_owned(),
+            schema_version: 1,
+            paused: false,
+            folder_name: None,
+            tags: Vec::new(),
+            schedule: WatchSchedule::default(),
+            alert_rule: WatchAlertRule::default(),
+            delivery: NotificationDelivery::InApp,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RecentWorkspace {
@@ -320,6 +414,8 @@ pub(crate) struct TargetSummary {
     pub(crate) baseline_phase: Option<TargetBaselinePhase>,
     pub(crate) last_run_outcome: Option<TargetRunOutcome>,
     pub(crate) last_run_at: Option<String>,
+    pub(crate) current_compare_preview: Option<String>,
+    pub(crate) watch_profile: WatchProfile,
     pub(crate) error_message: Option<String>,
 }
 
@@ -340,6 +436,7 @@ pub(crate) struct TargetDocumentRecord {
     pub(crate) state_document: Option<Value>,
     pub(crate) artifact_history: Option<TargetArtifactHistory>,
     pub(crate) artifact_issues: Vec<String>,
+    pub(crate) watch_profile: WatchProfile,
     pub(crate) error_message: Option<String>,
 }
 
@@ -486,6 +583,27 @@ pub(crate) struct TargetSaveRequest {
     pub(crate) previous_directory_name: Option<String>,
     pub(crate) draft_session: Option<TargetDraftSession>,
     pub(crate) raw_toml: Option<String>,
+    pub(crate) watch_profile: Option<WatchProfile>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SourceInspectionRequest {
+    pub(crate) kind: String,
+    pub(crate) source_locator: String,
+    pub(crate) fetch_method: Option<String>,
+    pub(crate) fetch_timeout_ms: Option<u64>,
+    pub(crate) fetch_user_agent: Option<String>,
+    pub(crate) fetch_follow_redirects: Option<bool>,
+    pub(crate) fetch_accept: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SourceInspectionResult {
+    pub(crate) final_url: Option<String>,
+    pub(crate) content_type: Option<String>,
+    pub(crate) html: String,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -36,8 +36,8 @@ describe('DetailPanel artifacts tab', () => {
     );
 
     expect(screen.getByText('Preview exploded')).toBeTruthy();
-    expect(screen.getByText('Preview to inspect the canonical ffhn.status_report.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Last run' }));
+    expect(screen.getByText('Check the watch setup to inspect the status report.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Latest check' }));
     expect(setArtifactTab).toHaveBeenCalledWith('run');
 
     rerender(
@@ -57,8 +57,8 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
     expect(screen.getByText('Run exploded')).toBeTruthy();
-    expect(screen.getByText('Run status report')).toBeTruthy();
-    expect(screen.getByText('Last run snapshot')).toBeTruthy();
+    expect(screen.getByText('Latest status report')).toBeTruthy();
+    expect(screen.getByText('Latest run snapshot')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -76,8 +76,8 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
     expect(screen.getByText('State checksum mismatch')).toBeTruthy();
-    expect(screen.getByText('State document')).toBeTruthy();
-    expect(screen.getByText('Current extraction.json')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Saved state' })).toBeTruthy();
+    expect(screen.getByText('Current extraction details')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -100,8 +100,8 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
     expect(screen.getByText('Workspace exploded')).toBeTruthy();
-    expect(screen.getByText('Batch report')).toBeTruthy();
-    expect(screen.getByText('Skipped directories')).toBeTruthy();
+    expect(screen.getByText('All-watch report')).toBeTruthy();
+    expect(screen.getByText('Skipped watches')).toBeTruthy();
     expect(screen.getByText(/archive-watch-root/u)).toBeTruthy();
   });
 
@@ -169,7 +169,7 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
 
-    expect(screen.queryByText('Preview to inspect the canonical ffhn.status_report.')).toBeNull();
+    expect(screen.queryByText('Check the watch setup to inspect the status report.')).toBeNull();
 
     rerender(
       <DetailPanel
@@ -209,8 +209,8 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
     expect(screen.queryByText('State checksum mismatch')).toBeNull();
-    expect(screen.getByText('No current baseline compare artifact yet.')).toBeTruthy();
-    expect(screen.getByText('No current extraction record yet.')).toBeTruthy();
+    expect(screen.getByText('No saved value yet.')).toBeTruthy();
+    expect(screen.getByText('No extraction record yet.')).toBeTruthy();
 
     rerender(
       <DetailPanel
@@ -231,7 +231,7 @@ describe('DetailPanel artifacts tab', () => {
       />,
     );
     expect(screen.queryByText('Workspace exploded')).toBeNull();
-    expect(screen.getByText('No directories were skipped.')).toBeTruthy();
+    expect(screen.getByText('No watches were skipped.')).toBeTruthy();
 
     rerender(
       <DetailPanel

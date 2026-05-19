@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   createWorkspace: vi.fn<(workspacePath: string) => Promise<WorkspaceSnapshot>>(),
   deleteTarget: vi.fn<(directoryName: string) => Promise<WorkspaceSnapshot>>(),
   getTargetTemplate: vi.fn<(kind: TargetTemplateKind) => Promise<TargetTemplate>>(),
+  inspectSource: vi.fn(),
   openTargetPath: vi.fn<(directoryName: string) => Promise<void>>(),
   openWorkspacePath: vi.fn<() => Promise<void>>(),
   openWorkspace: vi.fn<(workspacePath?: string) => Promise<WorkspaceSnapshot>>(),
@@ -289,6 +290,30 @@ describe('useDashboardState draft behavior', () => {
     });
   });
 
+  it('applies a preview-picked selector through one atomic guided-draft update', async () => {
+    const { result } = renderHook(() => useDashboardState());
+    await waitForLoadedState(result);
+
+    await act(async () => {
+      await result.current.handleStartNewTarget('file');
+    });
+
+    act(() => {
+      result.current.setSelectionKind('delimiter_pair');
+      result.current.setSelectionMatch('nth');
+      result.current.applyPreviewSelection('article.release-card > p.price');
+    });
+
+    expect(result.current.guidedDraft).toMatchObject({
+      selectionKind: 'css_selector',
+      selectionMatch: 'single',
+      selectionIndex: null,
+      selectionSelector: 'article.release-card > p.price',
+      selectionStart: null,
+      selectionEnd: null,
+    });
+  });
+
   it('adds, updates, and removes canonicalizers as draft-owned state', async () => {
     const { result } = renderHook(() => useDashboardState());
     await waitForLoadedState(result);
@@ -352,7 +377,7 @@ describe('useDashboardState draft behavior', () => {
     });
     expect(result.current.actionFeedback).toMatchObject({
       tone: 'warning',
-      message: 'The target document is empty.',
+      message: 'The watch document is empty.',
     });
 
     act(() => {
@@ -379,6 +404,7 @@ describe('useDashboardState draft behavior', () => {
     expect(api.saveTarget).toHaveBeenCalledWith({
       previousDirectoryName: 'alpha',
       rawToml: repairToml,
+      watchProfile: result.current.watchProfile,
     });
 
     unmount();

@@ -34,19 +34,21 @@ Run the maintained gates first:
 
 ```bash
 mise install
-npm install
-npm run sync:app-version
-npm run release-validation:backend
-npm run release-validation:backend:live
-npm run quality:ship
-npm run quality:miri
+mise exec -- npm install
+mise exec -- npm run sync:app-version
+mise exec -- npm run release-validation:backend
+mise exec -- npm run release-validation:backend:live
+mise exec -- npm run quality:ship
+mise exec -- npm run quality:miri
 ```
+
+Run each `mise exec -- npm ...` command directly. Do not wrap the whole sequence inside `mise exec -- sh -lc '...'`, because nested shells can fall back to the host Node/npm instead of the pinned toolchain.
 
 Then verify:
 
 - `vendor/app-version.json` is the intended release version.
 - `CHANGELOG.md` contains a non-empty `## [X.Y.Z]` section for the intended release version, because GitHub release notes are extracted from that section.
-- `npm run verify:app-version` passes, proving the generated consumers stayed aligned.
+- `mise exec -- npm run verify:app-version` passes, proving the generated consumers stayed aligned.
 - `docs/developer-guide.md`, `docs/architecture.md`, `docs/hygiene.md`, [release-publishing.md](./release-publishing.md), and `scripts/README.md` describe the current embedded-runtime and release flow.
 - `vendor/dmg-packaging.json`, `vendor/quality-gates.json`, `vendor/release-publishing.json`, `vendor/runtime-dependencies.json`, and `vendor/tooling-refresh.json` match the maintained workflow and tooling posture.
 - `.github/workflows/quality-gates.yml`, `.github/workflows/package-adhoc-signed-macos.yml`, and `.github/workflows/release.yml` all use the pinned Node runtime and current artifact names, the Ubuntu `quality`/`miri` jobs still install the maintained Tauri Linux development packages before Rust runs, and the macOS `desktop-surface` job still proves the public DMG bundle shape.
@@ -89,7 +91,7 @@ If `main` is already clean and truthful, skip this step and cut `release/X.Y.Z` 
 # If you came from Step 2 and replayed the capture diff, you are now on a clean
 # release/X.Y.Z branch with the captured changes staged but uncommitted.
 confirm or edit vendor/app-version.json
-npm run sync:app-version
+mise exec -- npm run sync:app-version
 git add <intended release files>
 git status --short
 git diff --cached --name-status

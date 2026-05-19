@@ -7,10 +7,34 @@ import type {
   TargetDraftSession,
   TargetDocumentRecord,
   TargetSummary,
+  WatchProfile,
   WorkspaceSnapshot,
 } from '../../src/types';
 
 type DashboardState = ReturnType<typeof useDashboardState>;
+
+export function makeWatchProfile(overrides: Partial<WatchProfile> = {}): WatchProfile {
+  return {
+    schemaName: 'dataarm.watch_profile',
+    schemaVersion: 1,
+    paused: false,
+    folderName: null,
+    tags: [],
+    schedule: {
+      preset: 'manual_only',
+      customExpression: null,
+    },
+    alertRule: {
+      kind: 'any_change',
+      textOperand: null,
+      numericOperand: null,
+      regexPattern: null,
+      ignoreTextFragments: [],
+    },
+    delivery: 'in_app',
+    ...overrides,
+  };
+}
 
 export function makeTarget(overrides: Partial<TargetSummary> = {}): TargetSummary {
   const target = {
@@ -28,6 +52,8 @@ export function makeTarget(overrides: Partial<TargetSummary> = {}): TargetSummar
     baselinePhase: 'has_baseline',
     lastRunOutcome: 'unchanged',
     lastRunAt: '2026-05-15T11:30:00Z',
+    currentComparePreview: 'Green Shared',
+    watchProfile: makeWatchProfile(),
     errorMessage: null,
     ...overrides,
   };
@@ -159,6 +185,7 @@ export function makeDocument(overrides: Partial<TargetDocumentRecord> = {}): Tar
     stateDocument: { schema_name: 'ffhn.state' },
     artifactHistory: makeArtifactHistory(),
     artifactIssues: [],
+    watchProfile: makeWatchProfile(),
     errorMessage: null,
     ...overrides,
   };
@@ -204,6 +231,7 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     document: { loading: false, error: null, data: document },
     draftSession: document.guidedSession,
     guidedDraft: document.guidedSession.draft,
+    watchProfile: document.watchProfile,
     repairMode: false,
     draftToml: document.rawToml,
     dirty: false,
@@ -237,10 +265,12 @@ export function makeDashboardState(overrides: Partial<DashboardState> = {}): Das
     setDraftKind: () => {},
     setSelectionKind: () => {},
     setSelectionMatch: () => {},
+    applyPreviewSelection: () => {},
     updateGuidedDraft: () => {},
     addCanonicalizer: () => {},
     updateCanonicalizer: () => {},
     removeCanonicalizer: () => {},
+    updateWatchProfile: () => {},
     setActionFeedback: () => {},
     handleSelectTarget: async () => {},
     handleStartNewTarget: async () => {},

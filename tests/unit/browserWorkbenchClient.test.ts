@@ -129,6 +129,30 @@ describe('browserWorkbenchClient', () => {
       ],
       [() => client.getTargetTemplateWorkbench('http'), 'get_target_template', { kind: 'http' }],
       [
+        () =>
+          client.inspectSourceWorkbench({
+            kind: 'http',
+            sourceLocator: 'https://example.com/releases',
+            fetchMethod: 'GET',
+            fetchTimeoutMs: 15000,
+            fetchUserAgent: 'dataarm/template',
+            fetchFollowRedirects: true,
+            fetchAccept: 'text/html',
+          }),
+        'inspect_source',
+        {
+          request: {
+            kind: 'http',
+            sourceLocator: 'https://example.com/releases',
+            fetchMethod: 'GET',
+            fetchTimeoutMs: 15000,
+            fetchUserAgent: 'dataarm/template',
+            fetchFollowRedirects: true,
+            fetchAccept: 'text/html',
+          },
+        },
+      ],
+      [
         () => client.previewTargetWorkbench({ rawToml: 'target_id = "preview"\n' }),
         'preview_target',
         { request: { rawToml: 'target_id = "preview"\n' } },

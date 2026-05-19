@@ -13,7 +13,7 @@ use crate::models::{
     AppState, DesktopAppInfo, DesktopBootstrap, WorkspaceSnapshot, WorkspaceSource,
     WorkspaceSummary,
 };
-use demo::ensure_demo_workspace;
+use demo::{DEMO_WORKSPACE_VERSION, materialize_demo_workspace};
 use ffhn_core::{self, ProcessErrorDetail, TargetDocument};
 pub(crate) use inventory::inventory_targets;
 use inventory::target_requires_attention;
@@ -236,6 +236,13 @@ pub(super) fn demo_workspace_root(app: &AppHandle) -> PathBuf {
         .join("demo-watch-root")
 }
 
+pub(super) fn default_workspace_root(app: &AppHandle) -> PathBuf {
+    app.path()
+        .app_local_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("dataarm"))
+        .join("watch-library")
+}
+
 pub(super) fn ensure_directory(path: &Path, label: &str) -> Result<(), String> {
     let metadata = fs::metadata(path)
         .map_err(|error| format!("Failed to read {label} {}: {error}", path.display()))?;
@@ -261,16 +268,7 @@ fn resolve_workspace_request(
 ) -> Result<ResolvedWorkspace, String> {
     match workspace_path {
         Some(path) => resolve_user_workspace(path, app, create_missing),
-        None => {
-            let demo_root = demo_workspace_root(app).display().to_string();
-            ensure_demo_workspace(
-                app,
-                &demo_status_board_html(),
-                &demo_release_notes_html(),
-                &demo_status_board_target(&demo_root),
-                &demo_release_notes_target(&demo_root),
-            )
-        }
+        None => ensure_default_workspace(app),
     }
 }
 
@@ -292,6 +290,60 @@ fn resolve_user_workspace(
     Ok(ResolvedWorkspace {
         origin: workspace_origin(app, &path),
         path,
+    })
+}
+
+fn ensure_default_workspace(app: &AppHandle) -> Result<ResolvedWorkspace, String> {
+    let root = default_workspace_root(app);
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("Failed to create workspace {}: {error}", root.display()))?;
+    ensure_default_examples(&root)?;
+    Ok(ResolvedWorkspace {
+        origin: WorkspaceOrigin::User,
+        path: root,
+    })
+}
+
+fn ensure_default_examples(workspace_root: &Path) -> Result<(), String> {
+    let examples_root = workspace_root.join(".dataarm").join("examples");
+    let version_file = examples_root.join(".examples-version");
+
+    let refresh = match fs::read_to_string(&version_file) {
+        Ok(version) => version.trim() != DEMO_WORKSPACE_VERSION,
+        Err(_) => true,
+    };
+
+    if !refresh {
+        return Ok(());
+    }
+
+    if examples_root.exists() {
+        fs::remove_dir_all(&examples_root).map_err(|error| {
+            format!(
+                "Failed to reset example library {}: {error}",
+                examples_root.display()
+            )
+        })?;
+    }
+
+    fs::create_dir_all(&examples_root).map_err(|error| {
+        format!(
+            "Failed to create example library {}: {error}",
+            examples_root.display()
+        )
+    })?;
+    materialize_demo_workspace(
+        &examples_root,
+        &demo_status_board_html(),
+        &demo_release_notes_html(),
+        &demo_status_board_target(&examples_root.display().to_string()),
+        &demo_release_notes_target(&examples_root.display().to_string()),
+    )?;
+    fs::write(&version_file, DEMO_WORKSPACE_VERSION).map_err(|error| {
+        format!(
+            "Failed to persist example library version {}: {error}",
+            version_file.display()
+        )
     })
 }
 
