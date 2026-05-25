@@ -50,11 +50,11 @@ jobs:
           workspaces: |
             src-tauri -> ../.dataarm-artifacts/target
       - name: Install cargo-deny
-        uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2.71.3
+        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # v2.79.7
         with:
           tool: cargo-deny@0.19.0
       - name: Install typos-cli
-        uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2.71.3
+        uses: taiki-e/install-action@d9be7d8cda89035c9c843f78bd44d4f72d8403d4 # v2.79.7
         with:
           tool: typos-cli@1.44.0
       - name: Run Node quality gates
